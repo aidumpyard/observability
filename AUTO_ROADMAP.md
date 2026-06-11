@@ -27,7 +27,7 @@ RULE: **loan_agent is FROZEN** — never modify it. Build a *separate* second te
 > BV-OBS-1 review feed-forward (next, in order): dashboard project scoping + auth; second test app on its own project; LLM-judge + Quality view.
 - [ ] **Second test agent app** (new project — e.g. support/invoice triage), wired to
       Prism with its own project key → real multi-app/multi-tenant view.
-- [~] **Dashboard project scoping done (BV-OBS-2); auth still pending**: login (PRISM_DASHBOARD_PASSWORD), project
+- [x] **Dashboard project scoping + auth (BV-OBS-2/3) done**: login (PRISM_DASHBOARD_PASSWORD), project
       filter, per-project views.
 - [x] Phase 3 eval engine — heuristic scorers (done).
 - [ ] Pluggable remote **LLM-judge** → `/v1/scores` (retires fake safetyRatings).

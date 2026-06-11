@@ -20,6 +20,7 @@ from dash.exceptions import PreventUpdate
 
 from ..prompts import PromptRepo, default_root
 from ..store import default_db_path
+from . import auth as _auth
 from . import queries
 
 _TYPE_COLORS = {
@@ -173,6 +174,8 @@ def create_app(db_path: Optional[str] = None, show_cost: bool = False,
     db_path = db_path or default_db_path()
     prompts_root = prompts_root or default_root()
     app = Dash(__name__, title="Prism", suppress_callback_exceptions=True)
+    users = _auth.parse_users()
+    _auth.install(app.server, users)   # no-op if no users configured (dev mode)
 
     app.layout = html.Div(style={"background": "#f1f5f9", "minHeight": "100vh",
                                  "fontFamily": "Inter, system-ui, sans-serif", "padding": "16px 24px"},
@@ -199,19 +202,31 @@ def create_app(db_path: Optional[str] = None, show_cost: bool = False,
             html.Div(id="tab-body", style={"marginTop": "14px"}),
         ])
 
-    _register(app, db_path, show_cost, prompts_root)
+    _register(app, db_path, show_cost, prompts_root, users)
     return app
 
 
 def _register(app: Dash, db_path: str, show_cost: bool = False,
-              prompts_root: Optional[str] = None) -> None:
+              prompts_root: Optional[str] = None, users: Optional[dict] = None) -> None:
     repo = PromptRepo(prompts_root)
+    users = users or {}
 
-    @app.callback(Output("project-filter", "options"), Input("tick", "n_intervals"))
-    def _projects(_):
+    def _enforce(requested):
+        """If the logged-in user is bound to a project, force that scope."""
+        bound = _auth.user_project(users, _auth.current_username(users))
+        return bound or requested
+
+    @app.callback(Output("project-filter", "options"), Output("project-filter", "value"),
+                  Input("tick", "n_intervals"), State("project-filter", "value"))
+    def _projects(_, current):
+        bound = _auth.user_project(users, _auth.current_username(users))
         rows = queries.list_projects(db_path)
-        return [{"label": "(all projects)", "value": "(all)"}] + \
+        if bound:  # tenant user: only their project, locked
+            name = next((p["name"] for p in rows if p["project_id"] == bound), bound)
+            return [{"label": name, "value": bound}], bound
+        opts = [{"label": "(all projects)", "value": "(all)"}] + \
                [{"label": p["name"], "value": p["project_id"]} for p in rows]
+        return opts, (current or "(all)")
 
     @app.callback(Output("app-filter", "options"),
                   Input("project-filter", "value"), Input("tick", "n_intervals"))
@@ -231,6 +246,7 @@ def _register(app: Dash, db_path: str, show_cost: bool = False,
         State("selected-trace", "data"),
     )
     def _render(tab, _n, app_id, hours, project, selected):
+        project = _enforce(project)   # tenant users are locked to their project
         # Don't let the 5s live-tick rebuild the Prompts tab (it has its own
         # dropdown state that the user is interacting with).
         if tab == "prompts" and ctx.triggered_id == "tick":

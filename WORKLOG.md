@@ -75,3 +75,13 @@ Newest first. Each entry: what changed, why, how verified. Baseline = `BV-OBS-0`
   trace, Globex 11/2, all 15/3.
 - Tests: dashboard smoke ✅; live dashboard HTTP 200. Built interactively (non-auto).
 - NOTE: dashboard *auth* (login) still pending — filter only.
+
+## 2026-06-11 — BV-OBS-3: dashboard auth + per-tenant lock
+- Added prism/dashboard/auth.py: HTTP Basic gate (zero deps, Flask under Dash).
+  Env-driven: PRISM_DASHBOARD_PASSWORD (+ PRISM_DASHBOARD_USER) = admin; or
+  PRISM_DASHBOARD_USERS="user:pass:project;..." for multiple users where the
+  optional 3rd field binds a user to one project (per-client logins). Open if unset.
+- Per-tenant lock: a bound user's project dropdown shows only their project AND
+  _render enforces the scope server-side (can't widen by tampering).
+- Tests: tests/smoke_auth.py (401 gate, admin+tenant logins, bad pw, binding) ✅;
+  dashboard regression ✅. Live: 401/200/200/401 verified via curl.
