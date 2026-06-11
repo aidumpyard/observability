@@ -33,3 +33,10 @@ Newest first. Each entry: what changed, why, how verified. Baseline = `BV-OBS-0`
 - Scheduling: in-session wakeup loop + a 2:31pm-IST one-shot resume. NOTE: scheduler
   is session-scoped here (durable flag not honored) — a hard token-limit kill stops
   auto-resume; user must reopen and say "resume BV-OBS-Auto".
+
+## 2026-06-11 — self-improving versioned loop defined
+- Added SELF_IMPROVE.md: each cycle ships one improvement, freezes a version tag
+  (BV-OBS-1, BV-OBS-2, ...), then self-reviews/judges the whole tool against a
+  rubric and feeds the top next-actions back into the roadmap.
+- Added REVIEWS/ (one self-review per version). Roadmap references the process.
+- Dashboard confirmed live on :8052 (HTTP 200).

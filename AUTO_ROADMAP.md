@@ -16,6 +16,7 @@ This branch holds changes made autonomously while the user is away. The
 
 ## Roadmap (priority order — updated 2026-06-11, BV-OBS-Auto judge call)
 GOAL: sellable to small clients, competing with Grafana/Langfuse.
+PROCESS: follow the build→freeze(BV-OBS-N)→self-review→improve loop in SELF_IMPROVE.md.
 RULE: **loan_agent is FROZEN** — never modify it. Build a *separate* second test app.
 
 - [ ] **Multi-tenant + API keys/auth (#1, sellable)**: `projects` table + per-project
