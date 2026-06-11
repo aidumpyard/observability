@@ -14,19 +14,28 @@ This branch holds changes made autonomously while the user is away. The
    dashboard/collector demos working.
 6. Stop when the roadmap is exhausted or a task is genuinely blocked (record why).
 
-## Roadmap (in priority order)
-- [x] **Phase 3 — Eval engine**: heuristic scorers (latency-SLO, token-budget,
-      empty/refusal, json-valid, length) → POST `/v1/scores`. *(started)*
-- [ ] Pluggable remote **LLM-judge** (Gateway/OpenAI-compatible) → quality scores;
-      tagged `internal=eval`, retires the fake safetyRatings.
+## Roadmap (priority order — updated 2026-06-11, BV-OBS-Auto judge call)
+GOAL: sellable to small clients, competing with Grafana/Langfuse.
+RULE: **loan_agent is FROZEN** — never modify it. Build a *separate* second test app.
+
+- [ ] **Multi-tenant + API keys/auth (#1, sellable)**: `projects` table + per-project
+      ingest keys; collector resolves `X-Prism-Key` → project_id and stamps it on
+      spans (server-side, no SDK/product change); `prism project create/list` CLI;
+      strict mode rejects unknown keys.
+- [ ] **Second test agent app** (new project — e.g. support/invoice triage), wired to
+      Prism with its own project key → real multi-app/multi-tenant view.
+- [ ] **Dashboard auth + project scoping**: login (PRISM_DASHBOARD_PASSWORD), project
+      filter, per-project views.
+- [x] Phase 3 eval engine — heuristic scorers (done).
+- [ ] Pluggable remote **LLM-judge** → `/v1/scores` (retires fake safetyRatings).
 - [ ] Dashboard **Quality view**: scores per app / per prompt-version + trends.
-- [ ] **Self-observability**: surface SDK `dropped` spans counter in the dashboard.
-- [ ] **Retention** (Phase 5): configurable max-age cleanup + VACUUM; `prism gc`.
-- [ ] Prompt repo: optional **version pinning** ("production" pointer) so adding a
-      new version doesn't auto-promote.
-- [ ] **OTel `gen_ai.*` export** option from the collector.
-- [ ] Docs: fold cost=opt-in, Dash, prompt repo, evals into ARCHITECTURE.md.
-- [ ] Test hardening + a top-level `make test` / `run_all_tests.sh`.
+- [ ] **Self-observability**: SDK `dropped` spans meter in the dashboard.
+- [ ] **Retention** (`prism gc`): max-age cleanup + VACUUM.
+- [ ] Prompt repo: **version pinning** ("production" pointer).
+- [ ] **OTel `gen_ai.*` export** from the collector.
+- [ ] **One-command install**: `prism up` (collector+dashboard) + quickstart docs.
+- [ ] Docs: fold cost-opt-in, Dash, prompt repo, evals, multi-tenant into ARCHITECTURE.md.
+- [ ] Test hardening + `run_all_tests.sh`.
 
 ## How to review when back
 `git log --oneline BV-OBS-0..BV-OBS-Auto` shows everything done autonomously.

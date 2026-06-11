@@ -22,3 +22,14 @@ Newest first. Each entry: what changed, why, how verified. Baseline = `BV-OBS-0`
   read-only and submits scores via collector `/v1/scores` (never a direct writer).
 - Tests: `tests/smoke_evals.py` (all scorers) ✅; spine regression ✅.
 - Next: pluggable remote LLM-judge, then dashboard Quality view.
+
+## 2026-06-11 — BV-OBS-Auto authority + priorities set
+- User granted: run code/tests/servers, commit to BV-OBS-Auto, install OSS pip deps,
+  edit Prism freely. **loan_agent FROZEN.** Build a separate 2nd test app.
+- #1 priority: **multi-tenant + API keys/auth** (sell to small clients vs Grafana/Langfuse).
+- Added `.claude/settings.json` allowlist (python/pytest/pip/git/uvicorn/curl) to
+  reduce approval prompts during autonomous runs.
+- Re-pointed roadmap accordingly.
+- Scheduling: in-session wakeup loop + a 2:31pm-IST one-shot resume. NOTE: scheduler
+  is session-scoped here (durable flag not honored) — a hard token-limit kill stops
+  auto-resume; user must reopen and say "resume BV-OBS-Auto".
