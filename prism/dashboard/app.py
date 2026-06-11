@@ -253,11 +253,6 @@ def create_app(db_path: Optional[str] = None, show_cost: bool = False,
                     {"label": "last 1h", "value": 1}, {"label": "last 24h", "value": 24},
                     {"label": "last 7d", "value": 168}, {"label": "all", "value": 0},
                 ], value=24, clearable=False, style={"width": "120px"}),
-                dcc.Dropdown(id="ts-metric", options=[
-                    {"label": "calls + tokens", "value": "both"},
-                    {"label": "calls", "value": "calls"},
-                    {"label": "tokens", "value": "tokens"},
-                ], value="both", clearable=False, style={"width": "140px"}),
                 dcc.Checklist(id="live", options=[{"label": " live", "value": "on"}],
                               value=["on"], style={"marginLeft": "auto"}),
             ]),
@@ -310,9 +305,10 @@ def _register(app: Dash, db_path: str, show_cost: bool = False,
         Input("tabs", "value"), Input("tick", "n_intervals"),
         Input("app-filter", "value"), Input("window", "value"),
         Input("project-filter", "value"), Input("identity", "value"),
-        Input("ts-metric", "value"), Input("selected-trace", "data"),
+        Input("selected-trace", "data"),
     )
-    def _render(tab, _n, app_id, hours, project, identity, ts_metric, selected):
+    def _render(tab, _n, app_id, hours, project, identity, selected):
+        ts_metric = "both"   # metric switch removed; default to calls + tokens
         # Tenant identities are locked to their project (enforced server-side).
         project = _identity.project_for(identity) or project
         # Don't let the 5s live-tick rebuild a tab the user is interacting with:
