@@ -57,3 +57,10 @@ Newest first. Each entry: what changed, why, how verified. Baseline = `BV-OBS-0`
 - Tests: tests/smoke_multitenant.py (2 tenants, stamping, 401, isolation) ✅;
   CLI create/list ✅; spine regression ✅.
 - Froze tag BV-OBS-1. Next: dashboard project filter/scoping + project-aware queries.
+
+## 2026-06-11 — autonomy paused (back to non-autonomous)
+- Per user: no-prompt bypass mode is opt-in only via "claude go autonomous mode".
+  Reverted settings.local.json to normal prompting; settings.json back to the named
+  allowlist (no bypass). Saved .claude/settings.autonomous.json as the opt-in template.
+- Cancelled the unattended jobs (12:05 cycle + 2:31pm resume). Loop paused; nothing
+  runs without the user. BV-OBS-1 remains frozen.
