@@ -423,13 +423,16 @@ def _quality_body(db_path, app_id, hours, project=None):
         r = by_name.get(name)
         return _card(label, f"{r['avg']:.2f}" if r else "—", f"n={r['n']}" if r else "no data")
 
-    judge_cards = html.Div(style={"display": "flex", "gap": "12px", "flexWrap": "wrap"}, children=[
+    cards = [
         metric("judge_relevance", "Relevance (1–5)"),
         metric("judge_coherence", "Coherence (1–5)"),
         metric("judge_safety", "Safety (1–5)"),
         metric("answered", "Answered rate"),
         metric("json_valid", "JSON valid rate"),
-    ])
+    ]
+    if "rouge_l" in by_name:   # reference-based regression (only when references exist)
+        cards.append(metric("rouge_l", "ROUGE-L (vs reference)"))
+    judge_cards = html.Div(style={"display": "flex", "gap": "12px", "flexWrap": "wrap"}, children=cards)
     if not summ:
         note = html.Div("No scores yet. Run the eval engine: heuristics always, plus the "
                         "LLM-judge if configured (writes to /v1/scores).",

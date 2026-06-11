@@ -69,16 +69,22 @@ def cmd_project(action: str, name: str | None = None, db: str | None = None) -> 
 
 def cmd_eval(db: str | None = None, collector: str = "http://127.0.0.1:9100",
              judge_url: str | None = None, judge_model: str = "gemini-2.5-flash",
-             sample: float = 1.0, ingest_key: str | None = None) -> None:
+             sample: float = 1.0, ingest_key: str | None = None,
+             references: str | None = None) -> None:
     from .evals import runner
     from .store import default_db_path
     judge = None
     if judge_url:
         from .evals.judge import GatewayJudge
         judge = GatewayJudge(judge_url, model=judge_model)
+    refs = None
+    if references:
+        from .evals.reference import load_references
+        refs = load_references(references)
     res = runner.run(db or default_db_path(), collector, judge=judge, sample=sample,
-                     ingest_key=ingest_key)
-    print(f"eval: scored={res['scores']} accepted={res['accepted']} judge={res['judge']}")
+                     ingest_key=ingest_key, references=refs)
+    print(f"eval: scored={res['scores']} accepted={res['accepted']} "
+          f"judge={res['judge']} references={res['references']}")
 
 
 def cmd_prompts(action: str, target: str | None = None, root: str | None = None) -> None:
@@ -138,9 +144,9 @@ def main() -> None:
     @app.command(name="eval")
     def eval_(db: str = None, collector: str = "http://127.0.0.1:9100",
               judge_url: str = None, judge_model: str = "gemini-2.5-flash",
-              sample: float = 1.0, ingest_key: str = None):
-        """Score recent spans (heuristics + optional --judge-url) -> /v1/scores."""
-        cmd_eval(db, collector, judge_url, judge_model, sample, ingest_key)
+              sample: float = 1.0, ingest_key: str = None, references: str = None):
+        """Score recent spans (heuristics + optional --judge-url + --references) -> /v1/scores."""
+        cmd_eval(db, collector, judge_url, judge_model, sample, ingest_key, references)
 
     app()
 
@@ -167,6 +173,7 @@ def _argparse_main() -> None:
     pe.add_argument("--db"); pe.add_argument("--collector", default="http://127.0.0.1:9100")
     pe.add_argument("--judge-url"); pe.add_argument("--judge-model", default="gemini-2.5-flash")
     pe.add_argument("--sample", type=float, default=1.0); pe.add_argument("--ingest-key")
+    pe.add_argument("--references")
     a = p.parse_args()
     if a.cmd == "init":
         cmd_init(a.db)
@@ -179,7 +186,7 @@ def _argparse_main() -> None:
     elif a.cmd == "project":
         cmd_project(a.action, a.name, a.db)
     elif a.cmd == "eval":
-        cmd_eval(a.db, a.collector, a.judge_url, a.judge_model, a.sample, a.ingest_key)
+        cmd_eval(a.db, a.collector, a.judge_url, a.judge_model, a.sample, a.ingest_key, a.references)
 
 
 if __name__ == "__main__":

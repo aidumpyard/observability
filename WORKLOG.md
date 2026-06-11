@@ -127,3 +127,17 @@ Newest first. Each entry: what changed, why, how verified. Baseline = `BV-OBS-0`
   also create_app/run params). false -> Traces hides the waterfall graph (keeps span
   table + prompts/responses); Quality tab removed from the tabs entirely.
 - Set BOTH to FALSE for now (per request). Verified on/off; regression green.
+
+## 2026-06-12 — BV-OBS-7: reference-based quality (ROUGE-L) + config toggles + chart polish
+- evals/reference.py: ROUGE-L F1 vs a golden reference (verdict PASS/WARN/FAIL +
+  length signal) and sha256 hashing. References keyed by input-hash (dev_check model);
+  load_references(json [{input,reference}]). Runner + `prism eval --references` wire it
+  in; scores source='reference'. Quality tab shows a "ROUGE-L (vs reference)" card.
+  Deps: `evals` extra (rouge-score, light); `drift` extra (bert-score/torch) reserved
+  for the optional BERTScore semantic-drift metric (deferred — heavy).
+- Also shipped this session: config toggles PRISM_SHOW_WATERFALL / PRISM_SHOW_QUALITY;
+  removed the calls/tokens metric dropdown; fixed Traces waterfall (click-to-open +
+  no 5s flicker); adaptive timeseries (BV-OBS-6).
+- Tests: tests/smoke_reference.py ✅; dashboard regression ✅. Demo: rouge_l avg 0.64
+  over seeded references.
+- KNOWN: re-running `prism eval` duplicates scores (no idempotency yet) — fix later.

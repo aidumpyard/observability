@@ -19,14 +19,18 @@ from .scorers import score_span
 log = logging.getLogger("prism.evals")
 
 
-def score_recent(db_path: str, limit: int = 500, judge=None, sample: float = 1.0) -> list[dict]:
-    """Heuristic-score the most recent llm spans; if a judge is given, also LLM-judge
-    them (optionally sampled). Returns the list of score dicts."""
+def score_recent(db_path: str, limit: int = 500, judge=None, sample: float = 1.0,
+                 references: dict | None = None) -> list[dict]:
+    """Heuristic-score the most recent llm spans; optionally LLM-judge (sampled) and
+    reference-score (ROUGE-L) any span whose input has a recorded reference."""
     import random
+    from . import reference as _ref
     spans = dao.recent_spans(db_path, limit=limit)
     scores: list[dict] = []
     for sp in spans:
         scores.extend(score_span(sp))
+        if references:
+            scores.extend(_ref.score_span(sp, references))
         if judge is not None and sp.get("type") == "llm" and random.random() <= sample:
             try:
                 scores.extend(judge.score_span(sp))
@@ -53,8 +57,9 @@ def submit(collector_url: str, scores: list[dict], *, ingest_key: Optional[str] 
 
 
 def run(db_path: str, collector_url: str, *, limit: int = 500,
-        ingest_key: Optional[str] = None, verify=True, judge=None, sample: float = 1.0) -> dict:
-    scores = score_recent(db_path, limit=limit, judge=judge, sample=sample)
+        ingest_key: Optional[str] = None, verify=True, judge=None, sample: float = 1.0,
+        references: dict | None = None) -> dict:
+    scores = score_recent(db_path, limit=limit, judge=judge, sample=sample, references=references)
     accepted = submit(collector_url, scores, ingest_key=ingest_key, verify=verify)
     return {"scored_spans_limit": limit, "scores": len(scores), "accepted": accepted,
-            "judge": bool(judge)}
+            "judge": bool(judge), "references": len(references or {})}
