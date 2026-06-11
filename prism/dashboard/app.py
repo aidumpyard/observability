@@ -294,8 +294,7 @@ def _register(app: Dash, db_path: str, show_cost: bool = False,
         Input("tabs", "value"), Input("tick", "n_intervals"),
         Input("app-filter", "value"), Input("window", "value"),
         Input("project-filter", "value"), Input("identity", "value"),
-        Input("ts-metric", "value"),
-        State("selected-trace", "data"),
+        Input("ts-metric", "value"), Input("selected-trace", "data"),
     )
     def _render(tab, _n, app_id, hours, project, identity, ts_metric, selected):
         # Tenant identities are locked to their project (enforced server-side).
