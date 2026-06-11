@@ -205,6 +205,7 @@ def create_app(db_path: Optional[str] = None, show_cost: bool = False,
             dcc.Tabs(id="tabs", value="overview", children=[
                 dcc.Tab(label="Overview", value="overview"),
                 dcc.Tab(label="Traces", value="traces"),
+                dcc.Tab(label="Quality", value="quality"),
                 dcc.Tab(label="Prompts", value="prompts"),
             ]),
             html.Div(id="tab-body", style={"marginTop": "14px"}),
@@ -258,6 +259,8 @@ def _register(app: Dash, db_path: str, show_cost: bool = False,
             raise PreventUpdate
         if tab == "overview":
             return _overview_body(db_path, app_id, hours, show_cost, project)
+        if tab == "quality":
+            return _quality_body(db_path, app_id, hours, project)
         if tab == "prompts":
             return _prompts_body(repo)
         return _traces_body(db_path, app_id, hours, selected, show_cost, project)
@@ -343,6 +346,52 @@ def _overview_body(db_path, app_id, hours, show_cost=False, project=None):
         ),
     ])
     return html.Div([cards, charts, table, ptable])
+
+
+def _quality_body(db_path, app_id, hours, project=None):
+    summ = queries.quality_summary(db_path, app_id, hours, project)
+    by_name = {r["name"]: r for r in summ}
+
+    def metric(name, label):
+        r = by_name.get(name)
+        return _card(label, f"{r['avg']:.2f}" if r else "—", f"n={r['n']}" if r else "no data")
+
+    judge_cards = html.Div(style={"display": "flex", "gap": "12px", "flexWrap": "wrap"}, children=[
+        metric("judge_relevance", "Relevance (1–5)"),
+        metric("judge_coherence", "Coherence (1–5)"),
+        metric("judge_safety", "Safety (1–5)"),
+        metric("answered", "Answered rate"),
+        metric("json_valid", "JSON valid rate"),
+    ])
+    if not summ:
+        note = html.Div("No scores yet. Run the eval engine: heuristics always, plus the "
+                        "LLM-judge if configured (writes to /v1/scores).",
+                        style={"color": "#94a3b8", "marginTop": "10px"})
+    else:
+        note = html.Span()
+
+    name_table = html.Div(style={"marginTop": "12px", "background": "white", "borderRadius": "10px", "padding": "10px"}, children=[
+        html.Div("Scores by metric", style={"fontWeight": 600, "marginBottom": "6px"}),
+        dash_table.DataTable(
+            data=summ or [{"name": "(none)"}],
+            columns=[{"name": c, "id": c} for c in ["source", "name", "avg", "n"]],
+            style_cell={"fontFamily": "monospace", "fontSize": "13px", "padding": "6px"},
+            style_header={"fontWeight": "700", "background": "#f8fafc"},
+        ),
+    ])
+    prows = queries.quality_by_prompt(db_path, app_id, hours, project)
+    prompt_table = html.Div(style={"marginTop": "12px", "background": "white", "borderRadius": "10px", "padding": "10px"}, children=[
+        html.Div("LLM-judge quality by prompt version", style={"fontWeight": 600, "marginBottom": "6px"}),
+        dash_table.DataTable(
+            data=prows or [{"prompt_id": "(no judge scores yet)"}],
+            columns=[{"name": c, "id": c} for c in
+                     ["prompt_id", "relevance", "coherence", "safety", "graded"]],
+            style_cell={"fontFamily": "monospace", "fontSize": "12px", "padding": "6px",
+                        "maxWidth": "320px", "overflow": "hidden", "textOverflow": "ellipsis"},
+            style_header={"fontWeight": "700", "background": "#f8fafc"},
+        ),
+    ])
+    return html.Div([judge_cards, note, name_table, prompt_table])
 
 
 def _traces_body(db_path, app_id, hours, selected, show_cost=False, project=None):

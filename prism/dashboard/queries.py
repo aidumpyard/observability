@@ -172,6 +172,42 @@ def by_prompt(db_path: str, app: Optional[str] = None, hours: int = 24,
         conn.close()
 
 
+def quality_summary(db_path: str, app: Optional[str] = None, hours: int = 24,
+                    project: Optional[str] = None) -> list[dict]:
+    """Average score per metric name (judge + heuristic), scoped, via scores⋈spans."""
+    where, params = _where(app, hours, base="1=1", project=project)
+    conn = db.connect(db_path, read_only=True)
+    try:
+        rows = conn.execute(
+            f"SELECT sc.name, sc.source, ROUND(AVG(sc.value),2) avg, COUNT(*) n "
+            f"FROM scores sc JOIN spans s ON sc.span_id = s.span_id "
+            f"WHERE {where} GROUP BY sc.name, sc.source ORDER BY sc.source, sc.name",
+            params).fetchall()
+        return [dict(r) for r in rows]
+    finally:
+        conn.close()
+
+
+def quality_by_prompt(db_path: str, app: Optional[str] = None, hours: int = 24,
+                      project: Optional[str] = None) -> list[dict]:
+    """Average LLM-judge score per prompt version — quality A/B across prompts."""
+    where, params = _where(app, hours, base="1=1", project=project)
+    conn = db.connect(db_path, read_only=True)
+    try:
+        rows = conn.execute(
+            f"SELECT s.prompt_id, "
+            f"  ROUND(AVG(CASE WHEN sc.name='judge_relevance' THEN sc.value END),2) relevance, "
+            f"  ROUND(AVG(CASE WHEN sc.name='judge_coherence' THEN sc.value END),2) coherence, "
+            f"  ROUND(AVG(CASE WHEN sc.name='judge_safety' THEN sc.value END),2) safety, "
+            f"  COUNT(DISTINCT sc.span_id) graded "
+            f"FROM scores sc JOIN spans s ON sc.span_id = s.span_id "
+            f"WHERE {where} AND sc.source='llm_judge' AND s.prompt_id IS NOT NULL "
+            f"GROUP BY s.prompt_id ORDER BY graded DESC", params).fetchall()
+        return [dict(r) for r in rows]
+    finally:
+        conn.close()
+
+
 def prompt_usage(db_path: str, ref: str) -> dict:
     """All-time usage for one prompt ref (e.g. 'loan_agent/extract@v1')."""
     conn = db.connect(db_path, read_only=True)

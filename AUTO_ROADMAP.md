@@ -30,8 +30,8 @@ RULE: **loan_agent is FROZEN** — never modify it. Build a *separate* second te
 - [x] **Dashboard project scoping + auth (BV-OBS-2/3) done**: login (PRISM_DASHBOARD_PASSWORD), project
       filter, per-project views.
 - [x] Phase 3 eval engine — heuristic scorers (done).
-- [ ] Pluggable remote **LLM-judge** → `/v1/scores` (retires fake safetyRatings).
-- [ ] Dashboard **Quality view**: scores per app / per prompt-version + trends.
+- [x] Pluggable remote **LLM-judge** + Quality view (BV-OBS-5) — retires fake safetyRatings.
+- [x] Dashboard **Quality view** (BV-OBS-5).
 - [ ] **Self-observability**: SDK `dropped` spans meter in the dashboard.
 - [ ] **Retention** (`prism gc`): max-age cleanup + VACUUM.
 - [ ] Prompt repo: **version pinning** ("production" pointer).

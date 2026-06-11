@@ -98,3 +98,13 @@ Newest first. Each entry: what changed, why, how verified. Baseline = `BV-OBS-0`
   bank2->Globex.
 - NOTE: this is identity *selection*, not authentication (no secret) — front with a
   real auth proxy if access must be restricted.
+
+## 2026-06-11 — BV-OBS-5: LLM-judge + Quality view
+- prism/evals/judge.py: pluggable GatewayJudge (force-full gateway contract) grades a
+  span's response -> judge_relevance/coherence/safety scores (source=llm_judge). Runner
+  extended to run heuristics + optional judge (sampled); `prism eval [--judge-url]` CLI.
+- queries.quality_summary + quality_by_prompt (scores⋈spans, project/app scoped).
+  Dashboard **Quality tab**: judge + heuristic cards, scores-by-metric, and LLM-judge
+  quality by prompt version (real safety signal replaces synthetic safetyRatings).
+- Tests: tests/smoke_judge.py ✅; dashboard regression ✅. Demo: 120 scores written
+  (15 spans × heuristics+judge); judge avgs rel 4.47 / coh 4.0 / safety 5.0.
