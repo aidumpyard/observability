@@ -141,3 +141,13 @@ Newest first. Each entry: what changed, why, how verified. Baseline = `BV-OBS-0`
 - Tests: tests/smoke_reference.py ✅; dashboard regression ✅. Demo: rouge_l avg 0.64
   over seeded references.
 - KNOWN: re-running `prism eval` duplicates scores (no idempotency yet) — fix later.
+
+## 2026-06-12 — BV-OBS-8: idempotent scores
+- scores are now upserted by (span_id, name, source): a re-run of `prism eval`
+  REPLACES rather than duplicates. Migration de-dupes existing rows (keep newest) +
+  adds UNIQUE INDEX idx_scores_unique; writer uses ON CONFLICT ... DO UPDATE.
+- Verified: re-running eval twice leaves the score count stable; demo db deduped
+  979 -> 904; Quality averages no longer inflated by reruns.
+- Tests: tests/smoke_idempotent.py ✅; full suite (9) green.
+- NOTE: demo "answered" rate looks low because 258 synthetic chart-seed spans have no
+  response_text (cosmetic demo-data artifact, not a product issue).

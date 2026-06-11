@@ -126,9 +126,14 @@ class Writer:
                 self._upsert_apps(cur, spans)
                 self._recompute_traces(cur, {s.get("trace_id") for s in spans if s.get("trace_id")})
             if scores:
+                # Upsert: one score per (span_id, name, source); a re-run replaces.
                 cur.executemany(
                     "INSERT INTO scores (span_id, trace_id, name, value, label, source, "
-                    "rationale, created_at) VALUES (?,?,?,?,?,?,?,?)",
+                    "rationale, created_at) VALUES (?,?,?,?,?,?,?,?) "
+                    "ON CONFLICT(span_id, name, source) DO UPDATE SET "
+                    "value=excluded.value, label=excluded.label, "
+                    "rationale=excluded.rationale, trace_id=excluded.trace_id, "
+                    "created_at=excluded.created_at",
                     [(s.get("span_id"), s.get("trace_id"), s.get("name"), s.get("value"),
                       s.get("label"), s.get("source"), s.get("rationale"),
                       s.get("created_at") or _now()) for s in scores],
