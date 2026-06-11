@@ -300,10 +300,15 @@ def _register(app: Dash, db_path: str, show_cost: bool = False,
     def _render(tab, _n, app_id, hours, project, identity, ts_metric, selected):
         # Tenant identities are locked to their project (enforced server-side).
         project = _identity.project_for(identity) or project
-        # Don't let the 5s live-tick rebuild the Prompts tab (it has its own
-        # dropdown state that the user is interacting with).
-        if tab == "prompts" and ctx.triggered_id == "tick":
-            raise PreventUpdate
+        # Don't let the 5s live-tick rebuild a tab the user is interacting with:
+        # the Prompts tab always, and the Traces tab once a trace is open (so the
+        # waterfall doesn't flicker/reset every 5s while you inspect it). The traces
+        # LIST still live-updates until you drill into one.
+        if ctx.triggered_id == "tick":
+            if tab == "prompts":
+                raise PreventUpdate
+            if tab == "traces" and selected:
+                raise PreventUpdate
         if tab == "overview":
             return _overview_body(db_path, app_id, hours, show_cost, project, ts_metric)
         if tab == "quality":
