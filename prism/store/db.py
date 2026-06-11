@@ -38,6 +38,15 @@ def init_db(db_path: str) -> None:
     conn = connect(db_path)
     try:
         conn.executescript(_SCHEMA.read_text())
+        _migrate(conn)
         conn.commit()
     finally:
         conn.close()
+
+
+def _migrate(conn) -> None:
+    """Additive migrations for DBs created before a column existed."""
+    cols = {r["name"] for r in conn.execute("PRAGMA table_info(spans)")}
+    if "project_id" not in cols:
+        conn.execute("ALTER TABLE spans ADD COLUMN project_id TEXT")
+        conn.execute("CREATE INDEX IF NOT EXISTS idx_spans_project ON spans(project_id)")

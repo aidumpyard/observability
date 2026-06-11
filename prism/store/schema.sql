@@ -61,6 +61,7 @@ CREATE TABLE IF NOT EXISTS spans (
     error          TEXT,
     data_classification TEXT,
     response_id    TEXT,
+    project_id     TEXT,            -- tenant; stamped server-side from the ingest key
     app_id         TEXT,
     env            TEXT,
     app_type       TEXT,
@@ -91,9 +92,20 @@ CREATE TABLE IF NOT EXISTS costs (
     currency       TEXT DEFAULT 'USD'
 );
 
+-- Multi-tenant: one row per client/project. The ingest key maps a request to a
+-- project; the collector stamps project_id on spans server-side.
+CREATE TABLE IF NOT EXISTS projects (
+    project_id  TEXT PRIMARY KEY,
+    name        TEXT,
+    ingest_key  TEXT UNIQUE,
+    active      INTEGER DEFAULT 1,
+    created_at  TEXT
+);
+
 CREATE INDEX IF NOT EXISTS idx_spans_trace   ON spans(trace_id);
 CREATE INDEX IF NOT EXISTS idx_spans_app     ON spans(app_id);
 CREATE INDEX IF NOT EXISTS idx_spans_created ON spans(created_at);
 CREATE INDEX IF NOT EXISTS idx_spans_model   ON spans(model);
 CREATE INDEX IF NOT EXISTS idx_scores_span   ON scores(span_id);
 CREATE INDEX IF NOT EXISTS idx_traces_app    ON traces(app_id);
+CREATE INDEX IF NOT EXISTS idx_spans_project ON spans(project_id);

@@ -1,0 +1,7 @@
+{
+  "_note": "AUTONOMOUS MODE TEMPLATE — do NOT use by default. Only when the user says 'claude go autonomous mode', copy this to .claude/settings.local.json (and ideally relaunch with `claude --dangerously-skip-permissions`) so unattended cycles never hit a permission prompt. Revert settings.local.json to {\"permissions\":{\"allow\":[]}} when leaving autonomous mode.",
+  "permissions": {
+    "defaultMode": "bypassPermissions",
+    "allow": ["Bash", "Read", "Edit", "Write"]
+  }
+}

@@ -12,5 +12,8 @@ dist/
 *.db-shm
 .prism/
 
+# Claude local (machine-specific perms; not shared)
+.claude/settings.local.json
+
 # OS
 .DS_Store

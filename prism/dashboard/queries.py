@@ -27,31 +27,61 @@ def _cutoff(hours: Optional[int]) -> Optional[str]:
     return dt.isoformat().replace("+00:00", "Z")
 
 
-def _where(app: Optional[str], hours: Optional[int], base: str = _LLM) -> tuple[str, list]:
+def _where(app: Optional[str], hours: Optional[int], base: str = _LLM,
+           project: Optional[str] = None, prefix: str = "") -> tuple[str, list]:
+    # prefix qualifies column names (e.g. "s.") when the query joins another table
+    # that shares column names like created_at.
+    tcol = f"COALESCE({prefix}created_at, {prefix}started_at, {prefix}received_at)"
     clauses = [base]
     params: list = []
+    if project and project != "(all)":
+        clauses.append(f"{prefix}project_id = ?")
+        params.append(project)
     if app and app != "(all)":
-        clauses.append("app_id = ?")
+        clauses.append(f"{prefix}app_id = ?")
         params.append(app)
     cut = _cutoff(hours)
     if cut:
-        clauses.append(f"{_T} >= ?")
+        clauses.append(f"{tcol} >= ?")
         params.append(cut)
     return " AND ".join(clauses), params
 
 
-def list_apps(db_path: str) -> list[str]:
+def list_apps(db_path: str, project: Optional[str] = None) -> list[str]:
     conn = db.connect(db_path, read_only=True)
     try:
-        rows = conn.execute("SELECT DISTINCT app_id FROM spans WHERE app_id IS NOT NULL "
-                            "ORDER BY app_id").fetchall()
+        if project and project != "(all)":
+            rows = conn.execute("SELECT DISTINCT app_id FROM spans WHERE app_id IS NOT NULL "
+                                "AND project_id = ? ORDER BY app_id", (project,)).fetchall()
+        else:
+            rows = conn.execute("SELECT DISTINCT app_id FROM spans WHERE app_id IS NOT NULL "
+                                "ORDER BY app_id").fetchall()
         return [r["app_id"] for r in rows]
     finally:
         conn.close()
 
 
-def overview(db_path: str, app: Optional[str] = None, hours: int = 24) -> dict:
-    where, params = _where(app, hours)
+def list_projects(db_path: str) -> list[dict]:
+    """Projects for the filter: prefer the projects table (names); fall back to
+    distinct project_id seen on spans (covers data ingested in open dev mode)."""
+    conn = db.connect(db_path, read_only=True)
+    try:
+        named = {r["project_id"]: r["name"] for r in conn.execute(
+            "SELECT project_id, name FROM projects").fetchall()}
+        seen = [r["project_id"] for r in conn.execute(
+            "SELECT DISTINCT project_id FROM spans WHERE project_id IS NOT NULL "
+            "ORDER BY project_id").fetchall()]
+        ids = list(dict.fromkeys(list(named) + seen))
+        return [{"project_id": pid, "name": named.get(pid, pid)} for pid in ids]
+    except Exception:  # noqa: BLE001 — projects table may not exist on old DBs
+        return []
+    finally:
+        conn.close()
+
+
+def overview(db_path: str, app: Optional[str] = None, hours: int = 24,
+             project: Optional[str] = None) -> dict:
+    where, params = _where(app, hours, project=project)
     conn = db.connect(db_path, read_only=True)
     try:
         row = conn.execute(
@@ -83,8 +113,9 @@ def _pct(values: list[float], p: int) -> float:
     return round(s[k], 1)
 
 
-def timeseries(db_path: str, app: Optional[str] = None, hours: int = 24) -> list[dict]:
-    where, params = _where(app, hours)
+def timeseries(db_path: str, app: Optional[str] = None, hours: int = 24,
+               project: Optional[str] = None) -> list[dict]:
+    where, params = _where(app, hours, project=project)
     conn = db.connect(db_path, read_only=True)
     try:
         # hourly buckets via substr on the ISO timestamp (YYYY-MM-DDTHH)
@@ -98,8 +129,8 @@ def timeseries(db_path: str, app: Optional[str] = None, hours: int = 24) -> list
         conn.close()
 
 
-def by_app(db_path: str, hours: int = 24) -> list[dict]:
-    where, params = _where(None, hours)
+def by_app(db_path: str, hours: int = 24, project: Optional[str] = None) -> list[dict]:
+    where, params = _where(None, hours, project=project)
     conn = db.connect(db_path, read_only=True)
     try:
         rows = conn.execute(
@@ -112,8 +143,9 @@ def by_app(db_path: str, hours: int = 24) -> list[dict]:
         conn.close()
 
 
-def by_model(db_path: str, app: Optional[str] = None, hours: int = 24) -> list[dict]:
-    where, params = _where(app, hours)
+def by_model(db_path: str, app: Optional[str] = None, hours: int = 24,
+             project: Optional[str] = None) -> list[dict]:
+    where, params = _where(app, hours, project=project)
     conn = db.connect(db_path, read_only=True)
     try:
         rows = conn.execute(
@@ -125,9 +157,10 @@ def by_model(db_path: str, app: Optional[str] = None, hours: int = 24) -> list[d
         conn.close()
 
 
-def by_prompt(db_path: str, app: Optional[str] = None, hours: int = 24) -> list[dict]:
+def by_prompt(db_path: str, app: Optional[str] = None, hours: int = 24,
+              project: Optional[str] = None) -> list[dict]:
     """Per prompt-version metrics — enables prompt A/B and regression spotting."""
-    where, params = _where(app, hours)
+    where, params = _where(app, hours, project=project)
     conn = db.connect(db_path, read_only=True)
     try:
         rows = conn.execute(
@@ -137,6 +170,42 @@ def by_prompt(db_path: str, app: Optional[str] = None, hours: int = 24) -> list[
             f"COALESCE(SUM(status='error'),0) errors "
             f"FROM spans WHERE {where} AND prompt_id IS NOT NULL "
             f"GROUP BY prompt_id ORDER BY calls DESC", params).fetchall()
+        return [dict(r) for r in rows]
+    finally:
+        conn.close()
+
+
+def quality_summary(db_path: str, app: Optional[str] = None, hours: int = 24,
+                    project: Optional[str] = None) -> list[dict]:
+    """Average score per metric name (judge + heuristic), scoped, via scores⋈spans."""
+    where, params = _where(app, hours, base="1=1", project=project, prefix="s.")
+    conn = db.connect(db_path, read_only=True)
+    try:
+        rows = conn.execute(
+            f"SELECT sc.name, sc.source, ROUND(AVG(sc.value),2) avg, COUNT(*) n "
+            f"FROM scores sc JOIN spans s ON sc.span_id = s.span_id "
+            f"WHERE {where} GROUP BY sc.name, sc.source ORDER BY sc.source, sc.name",
+            params).fetchall()
+        return [dict(r) for r in rows]
+    finally:
+        conn.close()
+
+
+def quality_by_prompt(db_path: str, app: Optional[str] = None, hours: int = 24,
+                      project: Optional[str] = None) -> list[dict]:
+    """Average LLM-judge score per prompt version — quality A/B across prompts."""
+    where, params = _where(app, hours, base="1=1", project=project, prefix="s.")
+    conn = db.connect(db_path, read_only=True)
+    try:
+        rows = conn.execute(
+            f"SELECT s.prompt_id, "
+            f"  ROUND(AVG(CASE WHEN sc.name='judge_relevance' THEN sc.value END),2) relevance, "
+            f"  ROUND(AVG(CASE WHEN sc.name='judge_coherence' THEN sc.value END),2) coherence, "
+            f"  ROUND(AVG(CASE WHEN sc.name='judge_safety' THEN sc.value END),2) safety, "
+            f"  COUNT(DISTINCT sc.span_id) graded "
+            f"FROM scores sc JOIN spans s ON sc.span_id = s.span_id "
+            f"WHERE {where} AND sc.source='llm_judge' AND s.prompt_id IS NOT NULL "
+            f"GROUP BY s.prompt_id ORDER BY graded DESC", params).fetchall()
         return [dict(r) for r in rows]
     finally:
         conn.close()
@@ -157,13 +226,13 @@ def prompt_usage(db_path: str, ref: str) -> dict:
 
 
 def recent_traces(db_path: str, app: Optional[str] = None, hours: int = 24,
-                  limit: int = 100) -> list[dict]:
+                  limit: int = 100, project: Optional[str] = None) -> list[dict]:
     # Aggregate over ALL spans (not just llm) so trace rows include chain/tool too.
-    where, params = _where(app, hours, base="1=1")
+    where, params = _where(app, hours, base="1=1", project=project)
     conn = db.connect(db_path, read_only=True)
     try:
         rows = conn.execute(
-            f"SELECT trace_id, MAX(app_id) app_id, "
+            f"SELECT trace_id, MAX(app_id) app_id, MAX(project_id) project_id, "
             f"  MIN(CASE WHEN parent_span_id IS NULL THEN name END) name, "
             f"  MIN(started_at) started_at, MAX(ended_at) ended_at, "
             f"  COUNT(*) spans, "

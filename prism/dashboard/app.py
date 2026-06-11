@@ -20,6 +20,7 @@ from dash.exceptions import PreventUpdate
 
 from ..prompts import PromptRepo, default_root
 from ..store import default_db_path
+from . import identity as _identity
 from . import queries
 
 _TYPE_COLORS = {
@@ -174,12 +175,24 @@ def create_app(db_path: Optional[str] = None, show_cost: bool = False,
     prompts_root = prompts_root or default_root()
     app = Dash(__name__, title="Prism", suppress_callback_exceptions=True)
 
+    from flask import jsonify
+
+    @app.server.route("/auth/detail")
+    def _auth_detail():                # GET /auth/detail -> {"identities":[...]}
+        return jsonify({"identities": _identity.names()})
+
     app.layout = html.Div(style={"background": "#f1f5f9", "minHeight": "100vh",
                                  "fontFamily": "Inter, system-ui, sans-serif", "padding": "16px 24px"},
         children=[
             html.Div(style={"display": "flex", "alignItems": "center", "gap": "16px"}, children=[
                 html.H2("🔭 Prism", style={"margin": 0, "color": "#0f172a"}),
-                dcc.Dropdown(id="app-filter", placeholder="all apps", style={"width": "220px"}),
+                html.Span("identity", style={"fontSize": "12px", "color": "#64748b"}),
+                dcc.Dropdown(id="identity",
+                             options=[{"label": n, "value": n} for n in _identity.names()],
+                             value="admin", clearable=False, style={"width": "150px"}),
+                dcc.Dropdown(id="project-filter", placeholder="all projects",
+                             value="(all)", clearable=False, style={"width": "200px"}),
+                dcc.Dropdown(id="app-filter", placeholder="all apps", style={"width": "200px"}),
                 dcc.Dropdown(id="window", options=[
                     {"label": "last 1h", "value": 1}, {"label": "last 24h", "value": 24},
                     {"label": "last 7d", "value": 168}, {"label": "all", "value": 0},
@@ -192,6 +205,7 @@ def create_app(db_path: Optional[str] = None, show_cost: bool = False,
             dcc.Tabs(id="tabs", value="overview", children=[
                 dcc.Tab(label="Overview", value="overview"),
                 dcc.Tab(label="Traces", value="traces"),
+                dcc.Tab(label="Quality", value="quality"),
                 dcc.Tab(label="Prompts", value="prompts"),
             ]),
             html.Div(id="tab-body", style={"marginTop": "14px"}),
@@ -205,10 +219,25 @@ def _register(app: Dash, db_path: str, show_cost: bool = False,
               prompts_root: Optional[str] = None) -> None:
     repo = PromptRepo(prompts_root)
 
-    @app.callback(Output("app-filter", "options"), Input("tick", "n_intervals"))
-    def _apps(_):
+    @app.callback(Output("project-filter", "options"), Output("project-filter", "value"),
+                  Output("project-filter", "disabled"),
+                  Input("identity", "value"), Input("tick", "n_intervals"),
+                  State("project-filter", "value"))
+    def _projects(identity, _, current):
+        bound = _identity.project_for(identity)
+        rows = queries.list_projects(db_path)
+        if bound:  # tenant identity: locked to its project
+            name = next((p["name"] for p in rows if p["project_id"] == bound), bound)
+            return [{"label": name, "value": bound}], bound, True
+        opts = [{"label": "(all projects)", "value": "(all)"}] + \
+               [{"label": p["name"], "value": p["project_id"]} for p in rows]
+        return opts, (current or "(all)"), False
+
+    @app.callback(Output("app-filter", "options"),
+                  Input("project-filter", "value"), Input("tick", "n_intervals"))
+    def _apps(project, _):
         return [{"label": "(all)", "value": "(all)"}] + \
-               [{"label": a, "value": a} for a in queries.list_apps(db_path)]
+               [{"label": a, "value": a} for a in queries.list_apps(db_path, project)]
 
     @app.callback(Output("tick", "disabled"), Input("live", "value"))
     def _toggle_live(live):
@@ -218,18 +247,23 @@ def _register(app: Dash, db_path: str, show_cost: bool = False,
         Output("tab-body", "children"),
         Input("tabs", "value"), Input("tick", "n_intervals"),
         Input("app-filter", "value"), Input("window", "value"),
+        Input("project-filter", "value"), Input("identity", "value"),
         State("selected-trace", "data"),
     )
-    def _render(tab, _n, app_id, hours, selected):
+    def _render(tab, _n, app_id, hours, project, identity, selected):
+        # Tenant identities are locked to their project (enforced server-side).
+        project = _identity.project_for(identity) or project
         # Don't let the 5s live-tick rebuild the Prompts tab (it has its own
         # dropdown state that the user is interacting with).
         if tab == "prompts" and ctx.triggered_id == "tick":
             raise PreventUpdate
         if tab == "overview":
-            return _overview_body(db_path, app_id, hours, show_cost)
+            return _overview_body(db_path, app_id, hours, show_cost, project)
+        if tab == "quality":
+            return _quality_body(db_path, app_id, hours, project)
         if tab == "prompts":
             return _prompts_body(repo)
-        return _traces_body(db_path, app_id, hours, selected, show_cost)
+        return _traces_body(db_path, app_id, hours, selected, show_cost, project)
 
     # ---- Prompts tab: cascading app -> name -> version -> detail ----
     @app.callback(
@@ -267,8 +301,8 @@ def _register(app: Dash, db_path: str, show_cost: bool = False,
         return None
 
 
-def _overview_body(db_path, app_id, hours, show_cost=False):
-    o = queries.overview(db_path, app_id, hours)
+def _overview_body(db_path, app_id, hours, show_cost=False, project=None):
+    o = queries.overview(db_path, app_id, hours, project)
     cards_list = [
         _card("LLM calls", f"{o['calls']:,}", f"{o['traces']} traces"),
         _card("Tokens", f"{int(o['tokens']):,}"),
@@ -284,12 +318,12 @@ def _overview_body(db_path, app_id, hours, show_cost=False):
     charts = html.Div(style={"display": "flex", "gap": "12px", "marginTop": "12px", "flexWrap": "wrap"}, children=[
         html.Div(style={"flex": "2", "minWidth": "420px", "background": "white", "borderRadius": "10px", "padding": "8px"},
                  children=[html.Div(ts_title, style={"padding": "6px 10px", "fontWeight": 600}),
-                           dcc.Graph(figure=build_timeseries(queries.timeseries(db_path, app_id, hours), show_cost))]),
+                           dcc.Graph(figure=build_timeseries(queries.timeseries(db_path, app_id, hours, project), show_cost))]),
         html.Div(style={"flex": "1", "minWidth": "320px", "background": "white", "borderRadius": "10px", "padding": "8px"},
                  children=[html.Div(bar_title, style={"padding": "6px 10px", "fontWeight": 600}),
-                           dcc.Graph(figure=build_model_bar(queries.by_model(db_path, app_id, hours), show_cost))]),
+                           dcc.Graph(figure=build_model_bar(queries.by_model(db_path, app_id, hours, project), show_cost))]),
     ])
-    rows = queries.by_app(db_path, hours)
+    rows = queries.by_app(db_path, hours, project)
     app_cols = ["app_id", "calls", "tokens", "cost", "avg_ms", "errors"] if show_cost \
         else ["app_id", "calls", "tokens", "avg_ms", "errors"]
     table = html.Div(style={"marginTop": "12px", "background": "white", "borderRadius": "10px", "padding": "10px"}, children=[
@@ -300,7 +334,7 @@ def _overview_body(db_path, app_id, hours, show_cost=False):
             style_header={"fontWeight": "700", "background": "#f8fafc"},
         ),
     ])
-    prows = queries.by_prompt(db_path, app_id, hours)
+    prows = queries.by_prompt(db_path, app_id, hours, project)
     ptable = html.Div(style={"marginTop": "12px", "background": "white", "borderRadius": "10px", "padding": "10px"}, children=[
         html.Div("By prompt version", style={"fontWeight": 600, "marginBottom": "6px"}),
         dash_table.DataTable(
@@ -314,9 +348,55 @@ def _overview_body(db_path, app_id, hours, show_cost=False):
     return html.Div([cards, charts, table, ptable])
 
 
-def _traces_body(db_path, app_id, hours, selected, show_cost=False):
-    traces = queries.recent_traces(db_path, app_id, hours, limit=200)
-    cols = ["started_at", "app_id", "name", "spans", "tokens", "status", "trace_id"]
+def _quality_body(db_path, app_id, hours, project=None):
+    summ = queries.quality_summary(db_path, app_id, hours, project)
+    by_name = {r["name"]: r for r in summ}
+
+    def metric(name, label):
+        r = by_name.get(name)
+        return _card(label, f"{r['avg']:.2f}" if r else "—", f"n={r['n']}" if r else "no data")
+
+    judge_cards = html.Div(style={"display": "flex", "gap": "12px", "flexWrap": "wrap"}, children=[
+        metric("judge_relevance", "Relevance (1–5)"),
+        metric("judge_coherence", "Coherence (1–5)"),
+        metric("judge_safety", "Safety (1–5)"),
+        metric("answered", "Answered rate"),
+        metric("json_valid", "JSON valid rate"),
+    ])
+    if not summ:
+        note = html.Div("No scores yet. Run the eval engine: heuristics always, plus the "
+                        "LLM-judge if configured (writes to /v1/scores).",
+                        style={"color": "#94a3b8", "marginTop": "10px"})
+    else:
+        note = html.Span()
+
+    name_table = html.Div(style={"marginTop": "12px", "background": "white", "borderRadius": "10px", "padding": "10px"}, children=[
+        html.Div("Scores by metric", style={"fontWeight": 600, "marginBottom": "6px"}),
+        dash_table.DataTable(
+            data=summ or [{"name": "(none)"}],
+            columns=[{"name": c, "id": c} for c in ["source", "name", "avg", "n"]],
+            style_cell={"fontFamily": "monospace", "fontSize": "13px", "padding": "6px"},
+            style_header={"fontWeight": "700", "background": "#f8fafc"},
+        ),
+    ])
+    prows = queries.quality_by_prompt(db_path, app_id, hours, project)
+    prompt_table = html.Div(style={"marginTop": "12px", "background": "white", "borderRadius": "10px", "padding": "10px"}, children=[
+        html.Div("LLM-judge quality by prompt version", style={"fontWeight": 600, "marginBottom": "6px"}),
+        dash_table.DataTable(
+            data=prows or [{"prompt_id": "(no judge scores yet)"}],
+            columns=[{"name": c, "id": c} for c in
+                     ["prompt_id", "relevance", "coherence", "safety", "graded"]],
+            style_cell={"fontFamily": "monospace", "fontSize": "12px", "padding": "6px",
+                        "maxWidth": "320px", "overflow": "hidden", "textOverflow": "ellipsis"},
+            style_header={"fontWeight": "700", "background": "#f8fafc"},
+        ),
+    ])
+    return html.Div([judge_cards, note, name_table, prompt_table])
+
+
+def _traces_body(db_path, app_id, hours, selected, show_cost=False, project=None):
+    traces = queries.recent_traces(db_path, app_id, hours, limit=200, project=project)
+    cols = ["started_at", "project_id", "app_id", "name", "spans", "tokens", "status", "trace_id"]
     if show_cost:
         cols.insert(5, "cost")
     table = dash_table.DataTable(
