@@ -179,7 +179,9 @@ def create_app(db_path: Optional[str] = None, show_cost: bool = False,
         children=[
             html.Div(style={"display": "flex", "alignItems": "center", "gap": "16px"}, children=[
                 html.H2("🔭 Prism", style={"margin": 0, "color": "#0f172a"}),
-                dcc.Dropdown(id="app-filter", placeholder="all apps", style={"width": "220px"}),
+                dcc.Dropdown(id="project-filter", placeholder="all projects",
+                             value="(all)", clearable=False, style={"width": "200px"}),
+                dcc.Dropdown(id="app-filter", placeholder="all apps", style={"width": "200px"}),
                 dcc.Dropdown(id="window", options=[
                     {"label": "last 1h", "value": 1}, {"label": "last 24h", "value": 24},
                     {"label": "last 7d", "value": 168}, {"label": "all", "value": 0},
@@ -205,10 +207,17 @@ def _register(app: Dash, db_path: str, show_cost: bool = False,
               prompts_root: Optional[str] = None) -> None:
     repo = PromptRepo(prompts_root)
 
-    @app.callback(Output("app-filter", "options"), Input("tick", "n_intervals"))
-    def _apps(_):
+    @app.callback(Output("project-filter", "options"), Input("tick", "n_intervals"))
+    def _projects(_):
+        rows = queries.list_projects(db_path)
+        return [{"label": "(all projects)", "value": "(all)"}] + \
+               [{"label": p["name"], "value": p["project_id"]} for p in rows]
+
+    @app.callback(Output("app-filter", "options"),
+                  Input("project-filter", "value"), Input("tick", "n_intervals"))
+    def _apps(project, _):
         return [{"label": "(all)", "value": "(all)"}] + \
-               [{"label": a, "value": a} for a in queries.list_apps(db_path)]
+               [{"label": a, "value": a} for a in queries.list_apps(db_path, project)]
 
     @app.callback(Output("tick", "disabled"), Input("live", "value"))
     def _toggle_live(live):
@@ -218,18 +227,19 @@ def _register(app: Dash, db_path: str, show_cost: bool = False,
         Output("tab-body", "children"),
         Input("tabs", "value"), Input("tick", "n_intervals"),
         Input("app-filter", "value"), Input("window", "value"),
+        Input("project-filter", "value"),
         State("selected-trace", "data"),
     )
-    def _render(tab, _n, app_id, hours, selected):
+    def _render(tab, _n, app_id, hours, project, selected):
         # Don't let the 5s live-tick rebuild the Prompts tab (it has its own
         # dropdown state that the user is interacting with).
         if tab == "prompts" and ctx.triggered_id == "tick":
             raise PreventUpdate
         if tab == "overview":
-            return _overview_body(db_path, app_id, hours, show_cost)
+            return _overview_body(db_path, app_id, hours, show_cost, project)
         if tab == "prompts":
             return _prompts_body(repo)
-        return _traces_body(db_path, app_id, hours, selected, show_cost)
+        return _traces_body(db_path, app_id, hours, selected, show_cost, project)
 
     # ---- Prompts tab: cascading app -> name -> version -> detail ----
     @app.callback(
@@ -267,8 +277,8 @@ def _register(app: Dash, db_path: str, show_cost: bool = False,
         return None
 
 
-def _overview_body(db_path, app_id, hours, show_cost=False):
-    o = queries.overview(db_path, app_id, hours)
+def _overview_body(db_path, app_id, hours, show_cost=False, project=None):
+    o = queries.overview(db_path, app_id, hours, project)
     cards_list = [
         _card("LLM calls", f"{o['calls']:,}", f"{o['traces']} traces"),
         _card("Tokens", f"{int(o['tokens']):,}"),
@@ -284,12 +294,12 @@ def _overview_body(db_path, app_id, hours, show_cost=False):
     charts = html.Div(style={"display": "flex", "gap": "12px", "marginTop": "12px", "flexWrap": "wrap"}, children=[
         html.Div(style={"flex": "2", "minWidth": "420px", "background": "white", "borderRadius": "10px", "padding": "8px"},
                  children=[html.Div(ts_title, style={"padding": "6px 10px", "fontWeight": 600}),
-                           dcc.Graph(figure=build_timeseries(queries.timeseries(db_path, app_id, hours), show_cost))]),
+                           dcc.Graph(figure=build_timeseries(queries.timeseries(db_path, app_id, hours, project), show_cost))]),
         html.Div(style={"flex": "1", "minWidth": "320px", "background": "white", "borderRadius": "10px", "padding": "8px"},
                  children=[html.Div(bar_title, style={"padding": "6px 10px", "fontWeight": 600}),
-                           dcc.Graph(figure=build_model_bar(queries.by_model(db_path, app_id, hours), show_cost))]),
+                           dcc.Graph(figure=build_model_bar(queries.by_model(db_path, app_id, hours, project), show_cost))]),
     ])
-    rows = queries.by_app(db_path, hours)
+    rows = queries.by_app(db_path, hours, project)
     app_cols = ["app_id", "calls", "tokens", "cost", "avg_ms", "errors"] if show_cost \
         else ["app_id", "calls", "tokens", "avg_ms", "errors"]
     table = html.Div(style={"marginTop": "12px", "background": "white", "borderRadius": "10px", "padding": "10px"}, children=[
@@ -300,7 +310,7 @@ def _overview_body(db_path, app_id, hours, show_cost=False):
             style_header={"fontWeight": "700", "background": "#f8fafc"},
         ),
     ])
-    prows = queries.by_prompt(db_path, app_id, hours)
+    prows = queries.by_prompt(db_path, app_id, hours, project)
     ptable = html.Div(style={"marginTop": "12px", "background": "white", "borderRadius": "10px", "padding": "10px"}, children=[
         html.Div("By prompt version", style={"fontWeight": 600, "marginBottom": "6px"}),
         dash_table.DataTable(
@@ -314,9 +324,9 @@ def _overview_body(db_path, app_id, hours, show_cost=False):
     return html.Div([cards, charts, table, ptable])
 
 
-def _traces_body(db_path, app_id, hours, selected, show_cost=False):
-    traces = queries.recent_traces(db_path, app_id, hours, limit=200)
-    cols = ["started_at", "app_id", "name", "spans", "tokens", "status", "trace_id"]
+def _traces_body(db_path, app_id, hours, selected, show_cost=False, project=None):
+    traces = queries.recent_traces(db_path, app_id, hours, limit=200, project=project)
+    cols = ["started_at", "project_id", "app_id", "name", "spans", "tokens", "status", "trace_id"]
     if show_cost:
         cols.insert(5, "cost")
     table = dash_table.DataTable(

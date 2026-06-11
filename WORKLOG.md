@@ -64,3 +64,14 @@ Newest first. Each entry: what changed, why, how verified. Baseline = `BV-OBS-0`
   allowlist (no bypass). Saved .claude/settings.autonomous.json as the opt-in template.
 - Cancelled the unattended jobs (12:05 cycle + 2:31pm resume). Loop paused; nothing
   runs without the user. BV-OBS-1 remains frozen.
+
+## 2026-06-11 — BV-OBS-2: dashboard project filter (multi-tenant visible)
+- Added a "project" filter dropdown to the dashboard header; threaded `project`
+  through all queries (overview/timeseries/by_app/by_model/by_prompt/recent_traces)
+  + `list_projects` (names from projects table). App dropdown scopes to the selected
+  project; traces table shows `project_id`. Multi-tenancy is now visible in the UI.
+- Demo data: 2 projects (Acme Bank, Globex Capital) via loan_agent runs with per-
+  project keys (loan_agent untouched, env only). Verified scoping: Acme 4 calls/1
+  trace, Globex 11/2, all 15/3.
+- Tests: dashboard smoke ✅; live dashboard HTTP 200. Built interactively (non-auto).
+- NOTE: dashboard *auth* (login) still pending — filter only.

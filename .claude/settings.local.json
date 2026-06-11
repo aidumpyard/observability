@@ -1,14 +1,5 @@
 {
   "permissions": {
-    "allow": [
-      "Bash(git add *)",
-      "Bash(git commit -q -m 'BV-OBS-Auto: add roadmap, worklog, gitignore for autonomous work *)",
-      "Bash(git remote *)",
-      "Bash(export GIT_TERMINAL_PROMPT=0)",
-      "Bash(git push *)",
-      "Bash(echo \"exit: $?\")",
-      "Bash(python3 -)",
-      "Bash(git commit -q -m 'evals: heuristic scorers + score runner \\(Phase 3 part 1\\) *)"
-    ]
+    "allow": []
   }
 }
