@@ -28,18 +28,21 @@ def _cutoff(hours: Optional[int]) -> Optional[str]:
 
 
 def _where(app: Optional[str], hours: Optional[int], base: str = _LLM,
-           project: Optional[str] = None) -> tuple[str, list]:
+           project: Optional[str] = None, prefix: str = "") -> tuple[str, list]:
+    # prefix qualifies column names (e.g. "s.") when the query joins another table
+    # that shares column names like created_at.
+    tcol = f"COALESCE({prefix}created_at, {prefix}started_at, {prefix}received_at)"
     clauses = [base]
     params: list = []
     if project and project != "(all)":
-        clauses.append("project_id = ?")
+        clauses.append(f"{prefix}project_id = ?")
         params.append(project)
     if app and app != "(all)":
-        clauses.append("app_id = ?")
+        clauses.append(f"{prefix}app_id = ?")
         params.append(app)
     cut = _cutoff(hours)
     if cut:
-        clauses.append(f"{_T} >= ?")
+        clauses.append(f"{tcol} >= ?")
         params.append(cut)
     return " AND ".join(clauses), params
 
@@ -175,7 +178,7 @@ def by_prompt(db_path: str, app: Optional[str] = None, hours: int = 24,
 def quality_summary(db_path: str, app: Optional[str] = None, hours: int = 24,
                     project: Optional[str] = None) -> list[dict]:
     """Average score per metric name (judge + heuristic), scoped, via scores⋈spans."""
-    where, params = _where(app, hours, base="1=1", project=project)
+    where, params = _where(app, hours, base="1=1", project=project, prefix="s.")
     conn = db.connect(db_path, read_only=True)
     try:
         rows = conn.execute(
@@ -191,7 +194,7 @@ def quality_summary(db_path: str, app: Optional[str] = None, hours: int = 24,
 def quality_by_prompt(db_path: str, app: Optional[str] = None, hours: int = 24,
                       project: Optional[str] = None) -> list[dict]:
     """Average LLM-judge score per prompt version — quality A/B across prompts."""
-    where, params = _where(app, hours, base="1=1", project=project)
+    where, params = _where(app, hours, base="1=1", project=project, prefix="s.")
     conn = db.connect(db_path, read_only=True)
     try:
         rows = conn.execute(

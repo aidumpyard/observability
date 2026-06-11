@@ -108,3 +108,8 @@ Newest first. Each entry: what changed, why, how verified. Baseline = `BV-OBS-0`
   quality by prompt version (real safety signal replaces synthetic safetyRatings).
 - Tests: tests/smoke_judge.py ✅; dashboard regression ✅. Demo: 120 scores written
   (15 spans × heuristics+judge); judge avgs rel 4.47 / coh 4.0 / safety 5.0.
+
+## 2026-06-11 — BV-OBS-5 hotfix: Quality tab "ambiguous column name: created_at"
+- scores⋈spans share created_at; _where now qualifies columns via a `prefix` arg
+  ("s.") for the joined quality queries. Quality tab now renders. Re-pointed the
+  BV-OBS-5 tag to the fixed commit (local-only, tag was minutes old + broken).
