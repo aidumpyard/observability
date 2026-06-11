@@ -170,3 +170,8 @@ Newest first. Each entry: what changed, why, how verified. Baseline = `BV-OBS-0`
   worked example (obs.py shim, single LLM seam, LangGraph handler, prompt repo),
   end-to-end-in-5-commands, config reference, troubleshooting, production notes.
 - README.md added (pyproject references it).
+
+## 2026-06-12 — docs: ready-to-run examples
+- docs/examples/: sample versioned prompt repo (support_bot: triage v1+v2, reply with
+  {tone}) + golden.json (ROUGE-L reference set) + examples/README.md. Guide points to
+  them. Verified: PromptRepo loads them, load_references parses + matches by input hash.

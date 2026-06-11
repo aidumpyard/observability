@@ -285,6 +285,10 @@ p = repo.load("loan_agent", "extract")        # latest; or load(..., version=2)
 text = llm_client.complete(user_msg, system_prompt=p.render(), prompt_id=p.ref)
 ```
 
+> **Ready-to-run samples:** [`docs/examples/`](examples/) ships a sample prompt repo
+> (`support_bot` with a v1/v2 `triage` to demo the diff) and a `golden.json` for
+> `prism eval --references`. See [docs/examples/README.md](examples/README.md).
+
 ### B.8 Three integration styles (any app, not just loan_agent)
 | Your app makes LLM calls via… | Use | Lines changed |
 |---|---|---|

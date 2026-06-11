@@ -1,0 +1,14 @@
+[
+  {
+    "input": "My payment failed three times and I was charged anyway.",
+    "reference": "{\"intent\": \"billing\", \"priority\": \"high\", \"sentiment\": \"negative\"}"
+  },
+  {
+    "input": "How do I change the email address on my account?",
+    "reference": "{\"intent\": \"account\", \"priority\": \"low\", \"sentiment\": \"neutral\"}"
+  },
+  {
+    "input": "The dashboard has been down for an hour and my team is blocked.",
+    "reference": "{\"intent\": \"technical\", \"priority\": \"high\", \"sentiment\": \"negative\"}"
+  }
+]
