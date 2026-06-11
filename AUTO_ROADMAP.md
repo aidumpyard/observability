@@ -23,6 +23,8 @@ RULE: **loan_agent is FROZEN** — never modify it. Build a *separate* second te
       ingest keys; collector resolves `X-Prism-Key` → project_id and stamps it on
       spans (server-side, no SDK/product change); `prism project create/list` CLI;
       strict mode rejects unknown keys.
+
+> BV-OBS-1 review feed-forward (next, in order): dashboard project scoping + auth; second test app on its own project; LLM-judge + Quality view.
 - [ ] **Second test agent app** (new project — e.g. support/invoice triage), wired to
       Prism with its own project key → real multi-app/multi-tenant view.
 - [ ] **Dashboard auth + project scoping**: login (PRISM_DASHBOARD_PASSWORD), project
