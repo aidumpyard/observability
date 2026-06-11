@@ -1,0 +1,16 @@
+# Python
+.venv/
+__pycache__/
+*.pyc
+*.egg-info/
+build/
+dist/
+
+# Prism local store / data
+*.db
+*.db-wal
+*.db-shm
+.prism/
+
+# OS
+.DS_Store
