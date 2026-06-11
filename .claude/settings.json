@@ -1,6 +1,13 @@
 {
   "permissions": {
+    "defaultMode": "acceptEdits",
     "allow": [
+      "Bash",
+      "Bash(cd:*)",
+      "Bash(cat:*)",
+      "Bash(echo:*)",
+      "Bash(sleep:*)",
+      "Bash(date:*)",
       "Bash(python3:*)",
       "Bash(python:*)",
       "Bash(pytest:*)",
