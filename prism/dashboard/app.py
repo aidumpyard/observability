@@ -10,7 +10,15 @@ Run:  prism dashboard --db ~/.prism/prism.db --port 8050
 from __future__ import annotations
 
 import difflib
+import os
 from typing import Optional
+
+
+def _envbool(name: str, default: bool) -> bool:
+    v = os.environ.get(name)
+    if v is None:
+        return default
+    return v.strip().lower() in ("1", "true", "yes", "on")
 
 import pandas as pd
 import plotly.express as px
@@ -211,9 +219,16 @@ def _card(title: str, value: str, sub: str = "") -> html.Div:
 # --- app factory -----------------------------------------------------------
 
 def create_app(db_path: Optional[str] = None, show_cost: bool = False,
-               prompts_root: Optional[str] = None) -> Dash:
+               prompts_root: Optional[str] = None,
+               show_waterfall: Optional[bool] = None,
+               show_quality: Optional[bool] = None) -> Dash:
     db_path = db_path or default_db_path()
     prompts_root = prompts_root or default_root()
+    # config toggles (param overrides env; env overrides default)
+    if show_waterfall is None:
+        show_waterfall = _envbool("PRISM_SHOW_WATERFALL", True)
+    if show_quality is None:
+        show_quality = _envbool("PRISM_SHOW_QUALITY", True)
     app = Dash(__name__, title="Prism", suppress_callback_exceptions=True)
 
     from flask import jsonify
@@ -251,18 +266,19 @@ def create_app(db_path: Optional[str] = None, show_cost: bool = False,
             dcc.Tabs(id="tabs", value="overview", children=[
                 dcc.Tab(label="Overview", value="overview"),
                 dcc.Tab(label="Traces", value="traces"),
-                dcc.Tab(label="Quality", value="quality"),
+                *([dcc.Tab(label="Quality", value="quality")] if show_quality else []),
                 dcc.Tab(label="Prompts", value="prompts"),
             ]),
             html.Div(id="tab-body", style={"marginTop": "14px"}),
         ])
 
-    _register(app, db_path, show_cost, prompts_root)
+    _register(app, db_path, show_cost, prompts_root, show_waterfall, show_quality)
     return app
 
 
 def _register(app: Dash, db_path: str, show_cost: bool = False,
-              prompts_root: Optional[str] = None) -> None:
+              prompts_root: Optional[str] = None, show_waterfall: bool = True,
+              show_quality: bool = True) -> None:
     repo = PromptRepo(prompts_root)
 
     @app.callback(Output("project-filter", "options"), Output("project-filter", "value"),
@@ -311,10 +327,12 @@ def _register(app: Dash, db_path: str, show_cost: bool = False,
         if tab == "overview":
             return _overview_body(db_path, app_id, hours, show_cost, project, ts_metric)
         if tab == "quality":
+            if not show_quality:
+                raise PreventUpdate
             return _quality_body(db_path, app_id, hours, project)
         if tab == "prompts":
             return _prompts_body(repo)
-        return _traces_body(db_path, app_id, hours, selected, show_cost, project)
+        return _traces_body(db_path, app_id, hours, selected, show_cost, project, show_waterfall)
 
     # ---- Prompts tab: cascading app -> name -> version -> detail ----
     @app.callback(
@@ -447,7 +465,8 @@ def _quality_body(db_path, app_id, hours, project=None):
     return html.Div([judge_cards, note, name_table, prompt_table])
 
 
-def _traces_body(db_path, app_id, hours, selected, show_cost=False, project=None):
+def _traces_body(db_path, app_id, hours, selected, show_cost=False, project=None,
+                 show_waterfall=True):
     traces = queries.recent_traces(db_path, app_id, hours, limit=200, project=project)
     cols = ["started_at", "project_id", "app_id", "name", "spans", "tokens", "status", "trace_id"]
     if show_cost:
@@ -473,7 +492,7 @@ def _traces_body(db_path, app_id, hours, selected, show_cost=False, project=None
         detail = [
             html.Div(f"Trace {selected[:12]}…  ·  {len(spans)} spans",
                      style={"fontWeight": 600, "margin": "14px 0 6px"}),
-            dcc.Graph(figure=build_waterfall(spans)),
+            *([dcc.Graph(figure=build_waterfall(spans))] if show_waterfall else []),
             dash_table.DataTable(
                 data=[{k: s.get(k) for k in span_cols} for s in spans],
                 columns=[{"name": c, "id": c} for c in span_cols],
@@ -485,7 +504,7 @@ def _traces_body(db_path, app_id, hours, selected, show_cost=False, project=None
         ]
     return html.Div([
         html.Div(style={"background": "white", "borderRadius": "10px", "padding": "10px"}, children=[
-            html.Div("Recent traces — click a row to open the waterfall",
+            html.Div("Recent traces — click a row to open the trace detail",
                      style={"fontWeight": 600, "marginBottom": "6px"}),
             table,
         ]),
@@ -578,5 +597,8 @@ def _diff_pre(diff_lines: list[str]) -> html.Pre:
 
 
 def run(db_path: Optional[str] = None, host: str = "127.0.0.1", port: int = 8052,
-        debug: bool = False, show_cost: bool = False, prompts_root: Optional[str] = None) -> None:
-    create_app(db_path, show_cost=show_cost, prompts_root=prompts_root).run(host=host, port=port, debug=debug)
+        debug: bool = False, show_cost: bool = False, prompts_root: Optional[str] = None,
+        show_waterfall: Optional[bool] = None, show_quality: Optional[bool] = None) -> None:
+    create_app(db_path, show_cost=show_cost, prompts_root=prompts_root,
+               show_waterfall=show_waterfall, show_quality=show_quality).run(
+        host=host, port=port, debug=debug)

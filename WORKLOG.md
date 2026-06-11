@@ -121,3 +121,9 @@ Newest first. Each entry: what changed, why, how verified. Baseline = `BV-OBS-0`
 - Header **metric switch**: calls+tokens / calls / tokens (persistent, no tick reset).
 - Seeded 258 demo spans across 24h (Acme/Globex) so the curve is visible.
 - Tests: dashboard regression ✅; all 3 metric modes build.
+
+## 2026-06-12 — config toggles: waterfall + quality tab
+- Dashboard config flags PRISM_SHOW_WATERFALL / PRISM_SHOW_QUALITY (true/false;
+  also create_app/run params). false -> Traces hides the waterfall graph (keeps span
+  table + prompts/responses); Quality tab removed from the tabs entirely.
+- Set BOTH to FALSE for now (per request). Verified on/off; regression green.
