@@ -40,3 +40,10 @@ Newest first. Each entry: what changed, why, how verified. Baseline = `BV-OBS-0`
   rubric and feeds the top next-actions back into the roadmap.
 - Added REVIEWS/ (one self-review per version). Roadmap references the process.
 - Dashboard confirmed live on :8052 (HTTP 200).
+
+## 2026-06-11 — work schedule + PM stance
+- Work-hours policy added to SELF_IMPROVE.md: cycle until 13:00 IST, rest 13:00–14:30,
+  resume 14:30 (cron). Commit-only (no push) until git auth fixed; stack versions
+  locally for a bulk push later.
+- PM stance: multi-tenant, low-integration-cost observability for a team running
+  multiple products; bar = "a small client buys this over Grafana/Langfuse."

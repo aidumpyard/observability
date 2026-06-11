@@ -5,6 +5,20 @@ improvement, **freezes it as a version tag**, then **self-reviews and self-judge
 the whole tool, and feeds the findings into the next cycle. The loop never touches
 `BV-OBS-0` (baseline) or `loan_agent` (frozen end product).
 
+## Product stance (think like the PM)
+Prism is observability for a **team running multiple LLM/Dash products on one
+instance**. Optimize for: multi-tenant isolation (projects + keys), near-zero
+integration cost for each product, self-serve onboarding, and a dashboard a
+non-expert can read. The bar is "a small client would pay for this instead of
+standing up Grafana/Langfuse." Every cycle should move toward that.
+
+## Work schedule (IST)
+- **Work** every cycle while local time is **before 13:00**.
+- **Rest** between **13:00 and 14:30**: finish the current cycle, then DO NOT
+  reschedule — the 14:31 cron resumes the loop.
+- **Resume** at **14:30** and keep cycling (next stop is the following 13:00).
+- Commits/tags accumulate locally (no push until the user fixes GitHub auth).
+
 ## The cycle (repeat until roadmap + review backlog are exhausted)
 
 1. **PLAN** — pick the highest-value open item from [AUTO_ROADMAP.md](AUTO_ROADMAP.md).
