@@ -85,3 +85,16 @@ Newest first. Each entry: what changed, why, how verified. Baseline = `BV-OBS-0`
   _render enforces the scope server-side (can't widen by tampering).
 - Tests: tests/smoke_auth.py (401 gate, admin+tenant logins, bad pw, binding) ✅;
   dashboard regression ✅. Live: 401/200/200/401 verified via curl.
+
+## 2026-06-11 — BV-OBS-4: identity endpoint replaces password auth
+- Removed HTTP Basic auth (auth.py + smoke_auth deleted). Added prism/dashboard/
+  identity.py + `GET /auth/detail` -> {"identities": ["admin","bank1","bank2"]}.
+  Identities are env-driven (PRISM_IDENTITIES="admin;bank1:<prj>;bank2:<prj>").
+- Dashboard header has an **identity dropdown** (no password): admin = all projects;
+  bank1/bank2 lock + disable the project filter and are enforced server-side in
+  _render. Dashboard is open (200, no 401).
+- Tests: tests/smoke_identity.py (/auth/detail body, scoping map, open access) ✅;
+  dashboard regression ✅. Live: /auth/detail returns admin/bank1/bank2; bank1->Acme,
+  bank2->Globex.
+- NOTE: this is identity *selection*, not authentication (no secret) — front with a
+  real auth proxy if access must be restricted.
