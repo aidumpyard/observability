@@ -1,0 +1,9 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(git add *)",
+      "Bash(git commit -q -m 'BV-OBS-Auto: add roadmap, worklog, gitignore for autonomous work *)",
+      "Bash(git remote *)"
+    ]
+  }
+}
