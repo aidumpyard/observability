@@ -15,7 +15,7 @@ This branch holds changes made autonomously while the user is away. The
 6. Stop when the roadmap is exhausted or a task is genuinely blocked (record why).
 
 ## Roadmap (in priority order)
-- [ ] **Phase 3 — Eval engine**: heuristic scorers (latency-SLO, token-budget,
+- [x] **Phase 3 — Eval engine**: heuristic scorers (latency-SLO, token-budget,
       empty/refusal, json-valid, length) → POST `/v1/scores`. *(started)*
 - [ ] Pluggable remote **LLM-judge** (Gateway/OpenAI-compatible) → quality scores;
       tagged `internal=eval`, retires the fake safetyRatings.

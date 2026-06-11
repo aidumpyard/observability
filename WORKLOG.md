@@ -15,3 +15,10 @@ Newest first. Each entry: what changed, why, how verified. Baseline = `BV-OBS-0`
   empty for github.com). Remote stays configured; autonomous commits accumulate on
   BV-OBS-Auto locally. To enable push: `gh auth login` OR add an SSH key OR store a
   PAT. Will push on next change once auth is present.
+
+## 2026-06-11 — Phase 3: eval engine (heuristics)
+- Added `prism/evals/`: heuristic scorers (latency_slo, token_budget,
+  empty_or_refusal, json_valid, response_length) + a runner that reads spans
+  read-only and submits scores via collector `/v1/scores` (never a direct writer).
+- Tests: `tests/smoke_evals.py` (all scorers) ✅; spine regression ✅.
+- Next: pluggable remote LLM-judge, then dashboard Quality view.
