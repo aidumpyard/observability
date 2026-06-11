@@ -163,3 +163,10 @@ Newest first. Each entry: what changed, why, how verified. Baseline = `BV-OBS-0`
   model) — the reproduction key for bank-grade auditability.
 - Tests: tests/smoke_audit.py (stamp + verify match + tamper) ✅; full suite (10) green.
   Re-ran a loan -> 4 hashed spans for the demo trace.
+
+## 2026-06-12 — docs: GETTING_STARTED guide (DevOps + Developer + User) + README
+- docs/GETTING_STARTED.md: full setup — collector server, TLS, dashboard, collector
+  CLI (project/prompts/eval/verify), and SDK integration with loan_agent as the
+  worked example (obs.py shim, single LLM seam, LangGraph handler, prompt repo),
+  end-to-end-in-5-commands, config reference, troubleshooting, production notes.
+- README.md added (pyproject references it).
