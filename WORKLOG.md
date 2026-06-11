@@ -113,3 +113,11 @@ Newest first. Each entry: what changed, why, how verified. Baseline = `BV-OBS-0`
 - scores⋈spans share created_at; _where now qualifies columns via a `prefix` arg
   ("s.") for the joined quality queries. Quality tab now renders. Re-pointed the
   BV-OBS-5 tag to the fixed commit (local-only, tag was minutes old + broken).
+
+## 2026-06-12 — BV-OBS-6: better "over time" chart
+- timeseries: adaptive bucket granularity (minute <=6h, hour <=7d, day beyond);
+  build_timeseries now uses a real datetime x-axis, spline lines + markers, area fill,
+  unified hover, adaptive tick format. Single-point data renders as a visible marker.
+- Header **metric switch**: calls+tokens / calls / tokens (persistent, no tick reset).
+- Seeded 258 demo spans across 24h (Acme/Globex) so the curve is visible.
+- Tests: dashboard regression ✅; all 3 metric modes build.

@@ -31,19 +31,60 @@ _TYPE_COLORS = {
 
 # --- figure builders (pure functions; unit-testable) -----------------------
 
-def build_timeseries(rows: list[dict], show_cost: bool = False) -> go.Figure:
+_CALLS_C = "#6366f1"
+_TOKENS_C = "#10b981"
+_COST_C = "#f59e0b"
+
+
+def build_timeseries(rows: list[dict], show_cost: bool = False, metric: str = "both") -> go.Figure:
+    """metric: 'calls' | 'tokens' | 'cost' | 'both'. Uses a real datetime x-axis and
+    adaptive bucket size (carried on each row as 'granularity')."""
     if not rows:
         return _empty("no data in window")
     df = pd.DataFrame(rows)
-    metric, title, color = ("cost", "cost $", "#f59e0b") if show_cost else ("tokens", "tokens", "#10b981")
+    df["t"] = pd.to_datetime(df["bucket"], errors="coerce", utc=True)
+    df = df.dropna(subset=["t"]).sort_values("t")
+    if df.empty:
+        return _empty("no data in window")
+    gran = df["granularity"].iloc[0] if "granularity" in df else "hour"
+    single = (len(df) == 1)
+
+    sec, sec_name, sec_c = (("cost", "cost $", _COST_C) if show_cost
+                            else ("tokens", "tokens", _TOKENS_C))
     fig = go.Figure()
-    fig.add_bar(x=df["bucket"], y=df["calls"], name="calls", marker_color="#6366f1")
-    fig.add_scatter(x=df["bucket"], y=df[metric], name=title, yaxis="y2",
-                    mode="lines+markers", line=dict(color=color))
+
+    def _calls():
+        fig.add_bar(x=df["t"], y=df["calls"], name="calls", marker_color=_CALLS_C, opacity=0.85)
+
+    fills = {_TOKENS_C: "rgba(16,185,129,0.12)", _COST_C: "rgba(245,158,11,0.12)"}
+
+    def _line(col, name, color, y2=False):
+        fig.add_scatter(x=df["t"], y=df[col], name=name, mode="lines+markers",
+                        line=dict(color=color, width=2, shape="spline"),
+                        marker=dict(size=8 if single else 5),
+                        fill=None if y2 else "tozeroy",
+                        fillcolor=None if y2 else fills.get(color),
+                        yaxis="y2" if y2 else "y")
+
+    if metric == "calls":
+        _calls()
+        fig.update_layout(yaxis=dict(title="calls"))
+    elif metric in ("tokens", "cost"):
+        col = "cost" if (metric == "cost" and show_cost) else "tokens"
+        _line(col, col, _TOKENS_C if col == "tokens" else _COST_C)
+        fig.update_layout(yaxis=dict(title=col))
+    else:  # both
+        _calls()
+        _line(sec, sec_name, sec_c, y2=True)
+        fig.update_layout(yaxis=dict(title="calls"),
+                          yaxis2=dict(title=sec_name, overlaying="y", side="right", showgrid=False))
+
+    tickfmt = {"minute": "%H:%M", "hour": "%b %d %H:%M", "day": "%b %d"}.get(gran, "%b %d %H:%M")
     fig.update_layout(
-        margin=dict(l=40, r=40, t=30, b=30), height=300,
-        yaxis=dict(title="calls"), yaxis2=dict(title=title, overlaying="y", side="right"),
-        legend=dict(orientation="h", y=1.15), template="plotly_white",
+        margin=dict(l=45, r=45, t=28, b=30), height=300, template="plotly_white",
+        hovermode="x unified", bargap=0.25,
+        legend=dict(orientation="h", y=1.15, x=0),
+        xaxis=dict(title=None, tickformat=tickfmt, showgrid=True, gridcolor="#eef2f7"),
     )
     return fig
 
@@ -196,7 +237,12 @@ def create_app(db_path: Optional[str] = None, show_cost: bool = False,
                 dcc.Dropdown(id="window", options=[
                     {"label": "last 1h", "value": 1}, {"label": "last 24h", "value": 24},
                     {"label": "last 7d", "value": 168}, {"label": "all", "value": 0},
-                ], value=24, clearable=False, style={"width": "140px"}),
+                ], value=24, clearable=False, style={"width": "120px"}),
+                dcc.Dropdown(id="ts-metric", options=[
+                    {"label": "calls + tokens", "value": "both"},
+                    {"label": "calls", "value": "calls"},
+                    {"label": "tokens", "value": "tokens"},
+                ], value="both", clearable=False, style={"width": "140px"}),
                 dcc.Checklist(id="live", options=[{"label": " live", "value": "on"}],
                               value=["on"], style={"marginLeft": "auto"}),
             ]),
@@ -248,9 +294,10 @@ def _register(app: Dash, db_path: str, show_cost: bool = False,
         Input("tabs", "value"), Input("tick", "n_intervals"),
         Input("app-filter", "value"), Input("window", "value"),
         Input("project-filter", "value"), Input("identity", "value"),
+        Input("ts-metric", "value"),
         State("selected-trace", "data"),
     )
-    def _render(tab, _n, app_id, hours, project, identity, selected):
+    def _render(tab, _n, app_id, hours, project, identity, ts_metric, selected):
         # Tenant identities are locked to their project (enforced server-side).
         project = _identity.project_for(identity) or project
         # Don't let the 5s live-tick rebuild the Prompts tab (it has its own
@@ -258,7 +305,7 @@ def _register(app: Dash, db_path: str, show_cost: bool = False,
         if tab == "prompts" and ctx.triggered_id == "tick":
             raise PreventUpdate
         if tab == "overview":
-            return _overview_body(db_path, app_id, hours, show_cost, project)
+            return _overview_body(db_path, app_id, hours, show_cost, project, ts_metric)
         if tab == "quality":
             return _quality_body(db_path, app_id, hours, project)
         if tab == "prompts":
@@ -301,7 +348,7 @@ def _register(app: Dash, db_path: str, show_cost: bool = False,
         return None
 
 
-def _overview_body(db_path, app_id, hours, show_cost=False, project=None):
+def _overview_body(db_path, app_id, hours, show_cost=False, project=None, ts_metric="both"):
     o = queries.overview(db_path, app_id, hours, project)
     cards_list = [
         _card("LLM calls", f"{o['calls']:,}", f"{o['traces']} traces"),
@@ -313,12 +360,14 @@ def _overview_body(db_path, app_id, hours, show_cost=False, project=None):
         cards_list.insert(2, _card("Cost", f"${o['cost']:.4f}"))
     cards = html.Div(style={"display": "flex", "gap": "12px", "flexWrap": "wrap"}, children=cards_list)
 
-    ts_title = "Calls & cost over time" if show_cost else "Calls & tokens over time"
+    ts_label = {"calls": "Calls", "tokens": "Tokens"}.get(ts_metric,
+               "Calls & cost" if show_cost else "Calls & tokens")
+    ts_title = f"{ts_label} over time"
     bar_title = "Cost by model" if show_cost else "Tokens by model"
     charts = html.Div(style={"display": "flex", "gap": "12px", "marginTop": "12px", "flexWrap": "wrap"}, children=[
         html.Div(style={"flex": "2", "minWidth": "420px", "background": "white", "borderRadius": "10px", "padding": "8px"},
                  children=[html.Div(ts_title, style={"padding": "6px 10px", "fontWeight": 600}),
-                           dcc.Graph(figure=build_timeseries(queries.timeseries(db_path, app_id, hours, project), show_cost))]),
+                           dcc.Graph(figure=build_timeseries(queries.timeseries(db_path, app_id, hours, project), show_cost, ts_metric))]),
         html.Div(style={"flex": "1", "minWidth": "320px", "background": "white", "borderRadius": "10px", "padding": "8px"},
                  children=[html.Div(bar_title, style={"padding": "6px 10px", "fontWeight": 600}),
                            dcc.Graph(figure=build_model_bar(queries.by_model(db_path, app_id, hours, project), show_cost))]),
