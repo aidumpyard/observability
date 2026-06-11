@@ -17,37 +17,48 @@ from typing import Optional
 
 from fastapi import FastAPI, Header, HTTPException
 
-from ..store import Writer, default_db_path
+from ..store import ProjectsDAO, Writer, default_db_path
 from ..version import SCHEMA_VERSION
 
 log = logging.getLogger("prism.collector")
 
 _writer: Optional[Writer] = None
-_keys: dict[str, str] = {}
+_projects: Optional[ProjectsDAO] = None
+_keymap: dict[str, str] = {}          # ingest_key -> project_id
+_require_key: bool = False
 
 
-def _load_keys() -> dict[str, str]:
+def _reload_keymap() -> None:
+    global _keymap
+    out = dict(_projects.key_map()) if _projects else {}
+    # Back-compat: env "PRISM_INGEST_KEYS" as "project_id:key" pairs.
     raw = os.environ.get("PRISM_INGEST_KEYS", "").strip()
-    out = {}
     for pair in raw.split(","):
         pair = pair.strip()
         if ":" in pair:
-            app_id, key = pair.split(":", 1)
-            out[app_id.strip()] = key.strip()
-    return out
+            pid, key = pair.split(":", 1)
+            out[key.strip()] = pid.strip()
+    _keymap = out
 
 
-def _check_key(x_prism_key: Optional[str]) -> None:
-    if not _keys:  # open dev mode
-        return
-    if x_prism_key not in _keys.values():
-        raise HTTPException(status_code=401, detail="invalid X-Prism-Key")
+def _resolve_project(x_prism_key: Optional[str]) -> Optional[str]:
+    """Map an ingest key to a project_id, reloading once on a miss."""
+    if x_prism_key and x_prism_key in _keymap:
+        return _keymap[x_prism_key]
+    if x_prism_key:
+        _reload_keymap()
+        if x_prism_key in _keymap:
+            return _keymap[x_prism_key]
+    if _require_key:
+        raise HTTPException(status_code=401, detail="invalid or missing X-Prism-Key")
+    return None  # open dev mode: accept, project_id stays null
 
 
 def create_app(db_path: Optional[str] = None) -> FastAPI:
-    global _writer, _keys
+    global _writer, _projects, _require_key
     db_path = db_path or os.environ.get("PRISM_DB", default_db_path())
-    _keys = _load_keys()
+    _projects = ProjectsDAO(db_path)
+    _require_key = os.environ.get("PRISM_REQUIRE_KEY", "").lower() in ("1", "true", "yes")
 
     api = FastAPI(title="Prism Collector", version="0.1.0")
 
@@ -55,7 +66,9 @@ def create_app(db_path: Optional[str] = None) -> FastAPI:
     def _startup():
         global _writer
         _writer = Writer(db_path).start()
-        log.info("prism collector: writing to %s (auth=%s)", db_path, "on" if _keys else "open")
+        _reload_keymap()
+        log.info("prism collector: writing to %s (projects=%d, strict=%s)",
+                 db_path, len(_keymap), _require_key)
 
     @api.on_event("shutdown")
     def _shutdown():
@@ -68,17 +81,24 @@ def create_app(db_path: Optional[str] = None) -> FastAPI:
 
     @api.post("/v1/ingest")
     def ingest(payload: dict, x_prism_key: Optional[str] = Header(default=None)):
-        _check_key(x_prism_key)
+        project_id = _resolve_project(x_prism_key)
         spans = payload.get("spans") or []
         if not isinstance(spans, list):
             raise HTTPException(status_code=422, detail="spans must be a list")
         _normalize(spans, payload.get("schema_version"))
+        if project_id:                       # stamp tenant server-side
+            for s in spans:
+                s["project_id"] = project_id
         _writer.submit_spans(spans)
-        return {"accepted": len(spans)}
+        return {"accepted": len(spans), "project_id": project_id}
+
+    @api.get("/v1/projects")
+    def list_projects():
+        return {"projects": _projects.list() if _projects else []}
 
     @api.post("/v1/scores")
     def scores(payload: dict, x_prism_key: Optional[str] = Header(default=None)):
-        _check_key(x_prism_key)
+        _resolve_project(x_prism_key)
         items = payload.get("scores") or []
         if not isinstance(items, list):
             raise HTTPException(status_code=422, detail="scores must be a list")

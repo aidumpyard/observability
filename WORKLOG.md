@@ -47,3 +47,13 @@ Newest first. Each entry: what changed, why, how verified. Baseline = `BV-OBS-0`
   locally for a bulk push later.
 - PM stance: multi-tenant, low-integration-cost observability for a team running
   multiple products; bar = "a small client buys this over Grafana/Langfuse."
+
+## 2026-06-11 — BV-OBS-1: multi-tenant + API keys
+- `projects` table + per-project ingest keys; collector resolves `X-Prism-Key` ->
+  `project_id` and stamps it on spans **server-side** (no SDK/product change);
+  strict mode (`PRISM_REQUIRE_KEY=1`) returns 401 for unknown/missing keys; open dev
+  mode otherwise. `prism project create/list` CLI; `GET /v1/projects`. Additive
+  migration adds `project_id` to existing DBs.
+- Tests: tests/smoke_multitenant.py (2 tenants, stamping, 401, isolation) ✅;
+  CLI create/list ✅; spine regression ✅.
+- Froze tag BV-OBS-1. Next: dashboard project filter/scoping + project-aware queries.

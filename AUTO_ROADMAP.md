@@ -19,7 +19,7 @@ GOAL: sellable to small clients, competing with Grafana/Langfuse.
 PROCESS: follow the build→freeze(BV-OBS-N)→self-review→improve loop in SELF_IMPROVE.md.
 RULE: **loan_agent is FROZEN** — never modify it. Build a *separate* second test app.
 
-- [ ] **Multi-tenant + API keys/auth (#1, sellable)**: `projects` table + per-project
+- [x] **Multi-tenant + API keys/auth (#1, sellable)**: `projects` table + per-project
       ingest keys; collector resolves `X-Prism-Key` → project_id and stamps it on
       spans (server-side, no SDK/product change); `prism project create/list` CLI;
       strict mode rejects unknown keys.

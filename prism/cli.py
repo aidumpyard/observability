@@ -43,6 +43,30 @@ def cmd_dashboard(host: str = "127.0.0.1", port: int = 8052, db: str | None = No
                   prompts_root=prompts_dir)
 
 
+def cmd_project(action: str, name: str | None = None, db: str | None = None) -> None:
+    from .store import ProjectsDAO, default_db_path
+    dao = ProjectsDAO(db or default_db_path())
+    if action == "create":
+        if not name:
+            sys.exit("usage: prism project create <name>")
+        p = dao.create(name)
+        print(f"created project '{p['name']}'")
+        print(f"  project_id : {p['project_id']}")
+        print(f"  ingest_key : {p['ingest_key']}")
+        print("\nUse it in the product:")
+        print(f"  prism.init(app=\"<app>\", endpoint=..., collector_url=..., "
+              f"ingest_key=\"{p['ingest_key']}\")")
+    elif action == "list":
+        rows = dao.list()
+        if not rows:
+            print("no projects yet — `prism project create <name>`")
+            return
+        for r in rows:
+            print(f"  {r['project_id']}  {r['name']}  active={r['active']}  {r['created_at']}")
+    else:
+        sys.exit(f"unknown project action: {action}")
+
+
 def cmd_prompts(action: str, target: str | None = None, root: str | None = None) -> None:
     from .prompts import PromptRepo
     repo = PromptRepo(root)
@@ -92,6 +116,11 @@ def main() -> None:
         """list  |  show <app>/<name>[@vN]"""
         cmd_prompts(action, target, root)
 
+    @app.command()
+    def project(action: str, name: str = typer.Argument(None), db: str = None):
+        """create <name>  |  list"""
+        cmd_project(action, name, db)
+
     app()
 
 
@@ -110,6 +139,9 @@ def _argparse_main() -> None:
     pp = sub.add_parser("prompts")
     pp.add_argument("action", choices=["list", "show"])
     pp.add_argument("target", nargs="?"); pp.add_argument("--root")
+    pj = sub.add_parser("project")
+    pj.add_argument("action", choices=["create", "list"])
+    pj.add_argument("name", nargs="?"); pj.add_argument("--db")
     a = p.parse_args()
     if a.cmd == "init":
         cmd_init(a.db)
@@ -119,6 +151,8 @@ def _argparse_main() -> None:
         cmd_dashboard(a.host, a.port, a.db, a.debug, a.show_cost, a.prompts_dir)
     elif a.cmd == "prompts":
         cmd_prompts(a.action, a.target, a.root)
+    elif a.cmd == "project":
+        cmd_project(a.action, a.name, a.db)
 
 
 if __name__ == "__main__":
