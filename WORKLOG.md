@@ -151,3 +151,15 @@ Newest first. Each entry: what changed, why, how verified. Baseline = `BV-OBS-0`
 - Tests: tests/smoke_idempotent.py ✅; full suite (9) green.
 - NOTE: demo "answered" rate looks low because 258 synthetic chart-seed spans have no
   response_text (cosmetic demo-data artifact, not a product issue).
+
+## 2026-06-12 — BV-OBS-9: audit hash / reproducibility
+- prism/audit.py (sha256/verify/repro_key); SDK stamps input_hash + output_hash on
+  llm spans at capture from the FULL text (before truncation/redaction) — so the
+  fingerprint exists even when content isn't stored. Schema + migration + writer +
+  trace_spans carry the hashes.
+- Collector `POST /v1/verify` {span_id, output} -> {match, stored_output_hash, ...}:
+  proves a text matches what was produced; detects tampering.
+- Dashboard: trace detail shows a "🔒 audit" line per llm span (output/input sha256 +
+  model) — the reproduction key for bank-grade auditability.
+- Tests: tests/smoke_audit.py (stamp + verify match + tamper) ✅; full suite (10) green.
+  Re-ran a loan -> 4 hashed spans for the demo trace.

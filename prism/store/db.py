@@ -50,6 +50,10 @@ def _migrate(conn) -> None:
     if "project_id" not in cols:
         conn.execute("ALTER TABLE spans ADD COLUMN project_id TEXT")
         conn.execute("CREATE INDEX IF NOT EXISTS idx_spans_project ON spans(project_id)")
+    if "input_hash" not in cols:
+        conn.execute("ALTER TABLE spans ADD COLUMN input_hash TEXT")
+    if "output_hash" not in cols:
+        conn.execute("ALTER TABLE spans ADD COLUMN output_hash TEXT")
 
     # Idempotent scores: at most one score per (span_id, name, source). De-dupe any
     # existing rows (keep the newest), then add the unique index that upserts rely on.

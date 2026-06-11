@@ -56,6 +56,8 @@ CREATE TABLE IF NOT EXISTS spans (
     finish_reason  TEXT,
     full_gemini_response TEXT,
     cost_usd       REAL,
+    input_hash     TEXT,            -- SHA-256 of full input (audit/reproducibility)
+    output_hash    TEXT,            -- SHA-256 of full output (tamper-evident)
     duration_ms    REAL,            -- measured locally on the producing host
     status         TEXT,
     error          TEXT,

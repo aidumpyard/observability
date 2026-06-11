@@ -49,6 +49,9 @@ class Span:
     full_gemini_response: Optional[str] = None
     cost_usd: Optional[float] = None
     response_id: Optional[str] = None
+    # Audit/reproducibility: SHA-256 of the full input/output (before truncation).
+    input_hash: Optional[str] = None
+    output_hash: Optional[str] = None
 
     # Generic span fields
     input: Optional[Any] = None

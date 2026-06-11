@@ -96,6 +96,29 @@ def create_app(db_path: Optional[str] = None) -> FastAPI:
     def list_projects():
         return {"projects": _projects.list() if _projects else []}
 
+    @api.post("/v1/verify")
+    def verify_output(payload: dict):
+        """Prove a text matches what a span produced (tamper/audit check).
+        Body: {"span_id": "...", "output": "<text to check>"}."""
+        from ..audit import sha256
+        from ..store import db as _db
+        span_id, output = payload.get("span_id"), payload.get("output")
+        if not span_id:
+            raise HTTPException(status_code=422, detail="span_id required")
+        conn = _db.connect(db_path, read_only=True)
+        try:
+            row = conn.execute(
+                "SELECT output_hash, input_hash, model FROM spans WHERE span_id = ?",
+                (span_id,)).fetchone()
+        finally:
+            conn.close()
+        if not row:
+            raise HTTPException(status_code=404, detail="span not found")
+        stored = row["output_hash"]
+        return {"span_id": span_id, "match": bool(stored) and sha256(output) == stored,
+                "stored_output_hash": stored, "computed_hash": sha256(output),
+                "input_hash": row["input_hash"], "model": row["model"]}
+
     @api.post("/v1/scores")
     def scores(payload: dict, x_prism_key: Optional[str] = Header(default=None)):
         _resolve_project(x_prism_key)

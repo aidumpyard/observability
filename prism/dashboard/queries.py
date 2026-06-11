@@ -271,8 +271,9 @@ def trace_spans(db_path: str, trace_id: str) -> list[dict]:
     try:
         rows = conn.execute(
             "SELECT span_id, parent_span_id, trace_id, type, name, model, prompt_id, "
-            "started_at, ended_at, duration_ms, prompt_tokens, completion_tokens, "
-            "total_tokens, cost_usd, status, error, system_prompt, user_message, response_text "
+            "params_json, started_at, ended_at, duration_ms, prompt_tokens, completion_tokens, "
+            "total_tokens, cost_usd, status, error, system_prompt, user_message, response_text, "
+            "input_hash, output_hash "
             "FROM spans WHERE trace_id = ? ORDER BY started_at ASC", (trace_id,)).fetchall()
         return [dict(r) for r in rows]
     finally:

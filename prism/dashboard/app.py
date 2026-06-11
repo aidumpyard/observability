@@ -177,6 +177,13 @@ def build_messages(spans: list[dict]) -> list:
                      _pre(s.get("user_message"), "#eff6ff")]
         children += [html.Div("RESPONSE", style={"fontSize": "11px", "color": "#64748b", "marginTop": "6px"}),
                      _pre(s.get("response_text"), "#f0fdf4")]
+        if s.get("output_hash"):
+            oh, ih = s.get("output_hash"), s.get("input_hash") or ""
+            children += [html.Div(
+                f"🔒 audit · out sha256 {oh[:20]}… · in {ih[:12] or '—'}… · model {s.get('model')}",
+                style={"fontSize": "11px", "color": "#475569", "fontFamily": "monospace",
+                       "marginTop": "6px", "background": "#f8fafc", "padding": "4px 8px",
+                       "borderRadius": "6px"})]
         if s.get("error"):
             children += [_pre(s["error"], "#fef2f2")]
         blocks.append(html.Details(open=False, style={
