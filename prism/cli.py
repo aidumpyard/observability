@@ -70,9 +70,11 @@ def cmd_project(action: str, name: str | None = None, db: str | None = None) -> 
 def cmd_eval(db: str | None = None, collector: str = "http://127.0.0.1:9100",
              judge_url: str | None = None, judge_model: str = "gemini-2.5-flash",
              sample: float = 1.0, ingest_key: str | None = None,
-             references: str | None = None) -> None:
+             references: str | None = None, watch: bool = False,
+             interval: float = 300.0, max_judge: int | None = None) -> None:
     from .evals import runner
     from .store import default_db_path
+    db = db or default_db_path()
     judge = None
     if judge_url:
         from .evals.judge import GatewayJudge
@@ -81,10 +83,14 @@ def cmd_eval(db: str | None = None, collector: str = "http://127.0.0.1:9100",
     if references:
         from .evals.reference import load_references
         refs = load_references(references)
-    res = runner.run(db or default_db_path(), collector, judge=judge, sample=sample,
-                     ingest_key=ingest_key, references=refs)
-    print(f"eval: scored={res['scores']} accepted={res['accepted']} "
-          f"judge={res['judge']} references={res['references']}")
+    kw = dict(judge=judge, sample=sample, ingest_key=ingest_key, references=refs,
+              max_judge=max_judge)
+    if watch:
+        runner.run_loop(db, collector, interval=interval, **kw)   # scheduled, incremental
+    else:
+        res = runner.run(db, collector, **kw)
+        print(f"eval: scored={res['scores']} accepted={res['accepted']} "
+              f"judge={res['judge']} references={res['references']}")
 
 
 def cmd_prompts(action: str, target: str | None = None, root: str | None = None) -> None:
@@ -144,9 +150,11 @@ def main() -> None:
     @app.command(name="eval")
     def eval_(db: str = None, collector: str = "http://127.0.0.1:9100",
               judge_url: str = None, judge_model: str = "gemini-2.5-flash",
-              sample: float = 1.0, ingest_key: str = None, references: str = None):
-        """Score recent spans (heuristics + optional --judge-url + --references) -> /v1/scores."""
-        cmd_eval(db, collector, judge_url, judge_model, sample, ingest_key, references)
+              sample: float = 1.0, ingest_key: str = None, references: str = None,
+              watch: bool = False, interval: float = 300.0, max_judge: int = None):
+        """Score recent spans (heuristics + optional judge/references). --watch loops."""
+        cmd_eval(db, collector, judge_url, judge_model, sample, ingest_key, references,
+                 watch, interval, max_judge)
 
     app()
 
@@ -174,6 +182,8 @@ def _argparse_main() -> None:
     pe.add_argument("--judge-url"); pe.add_argument("--judge-model", default="gemini-2.5-flash")
     pe.add_argument("--sample", type=float, default=1.0); pe.add_argument("--ingest-key")
     pe.add_argument("--references")
+    pe.add_argument("--watch", action="store_true"); pe.add_argument("--interval", type=float, default=300.0)
+    pe.add_argument("--max-judge", type=int)
     a = p.parse_args()
     if a.cmd == "init":
         cmd_init(a.db)
@@ -186,7 +196,8 @@ def _argparse_main() -> None:
     elif a.cmd == "project":
         cmd_project(a.action, a.name, a.db)
     elif a.cmd == "eval":
-        cmd_eval(a.db, a.collector, a.judge_url, a.judge_model, a.sample, a.ingest_key, a.references)
+        cmd_eval(a.db, a.collector, a.judge_url, a.judge_model, a.sample, a.ingest_key,
+                 a.references, a.watch, a.interval, a.max_judge)
 
 
 if __name__ == "__main__":

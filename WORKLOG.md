@@ -175,3 +175,11 @@ Newest first. Each entry: what changed, why, how verified. Baseline = `BV-OBS-0`
 - docs/examples/: sample versioned prompt repo (support_bot: triage v1+v2, reply with
   {tone}) + golden.json (ROUGE-L reference set) + examples/README.md. Guide points to
   them. Verified: PromptRepo loads them, load_references parses + matches by input hash.
+
+## 2026-06-12 — BV-OBS-10: scheduled evals
+- `prism eval --watch --interval N` loops the eval engine; **incremental** (skip_judged)
+  so each cycle re-runs cheap heuristics but only LLM-judges spans not already judged.
+  `--max-judge N` caps judge calls per cycle (cost budget). Safe because scores are
+  idempotent (BV-OBS-8). dao.judged_span_ids + runner.run_loop + CLI flags.
+- Tests: tests/smoke_eval_loop.py (incremental + budget) ✅; full suite (11) green.
+- Guide updated (Part C) with the scheduled-evals recipe.

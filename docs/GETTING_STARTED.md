@@ -337,8 +337,18 @@ prism eval \
   --sample 1.0
 ```
 `golden.json` = `[{"input": "<prompt>", "reference": "<expected output>"}]`. Scores are
-**idempotent** (re-running replaces, never duplicates). Run it on a schedule (cron) or
-after each deploy.
+**idempotent** (re-running replaces, never duplicates).
+
+**Scheduled evals** — run continuously instead of by hand:
+```bash
+prism eval --watch --interval 300 \           # every 5 min
+  --judge-url https://gateway/api/llm/process \
+  --max-judge 200                              # cap judge calls per cycle (cost budget)
+```
+`--watch` is **incremental**: each cycle re-runs the cheap heuristics but only
+LLM-judges **spans not already judged**, so cost stays bounded as data grows. Run it as
+a service (systemd/tmux) alongside the collector, or use plain `cron` with the one-shot
+form.
 
 ### C.4 Verify an output (audit / dispute resolution)
 Prove a given text is exactly what a span produced — or detect tampering:
