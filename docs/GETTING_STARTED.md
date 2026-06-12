@@ -382,13 +382,11 @@ live**.
 # End-to-end in 5 commands
 
 ```bash
-# 1. collector
-prism serve --db ~/prism/prism.db --port 9100 &
+# 1+3. collector AND dashboard in one command (Ctrl-C stops both; add --eval for the loop)
+prism up --db ~/prism/prism.db --prompts-dir /path/to/loan_agent/prompts &
+#   (equivalently: `prism serve …` and `prism dashboard …` in two terminals)
 # 2. a tenant + its key
 prism project create "Acme Bank" --db ~/prism/prism.db        # copy the ingest_key
-# 3. dashboard
-prism dashboard --db ~/prism/prism.db --port 8052 \
-  --prompts-dir /path/to/loan_agent/prompts &
 # 4. run your instrumented app, pointed at the collector
 PRISM_ENABLED=1 PRISM_COLLECTOR_URL=http://127.0.0.1:9100 \
   PRISM_INGEST_KEY=pk_XXXX python -m loan_agent.cli examples/loan_large.txt

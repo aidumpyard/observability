@@ -43,6 +43,70 @@ def cmd_dashboard(host: str = "127.0.0.1", port: int = 8052, db: str | None = No
                   prompts_root=prompts_dir)
 
 
+def cmd_up(db: str | None = None, collector_port: int = 9100, dashboard_port: int = 8052,
+           prompts_dir: str | None = None, eval: bool = False, judge_url: str | None = None,
+           ssl_keyfile: str | None = None, ssl_certfile: str | None = None) -> None:
+    """One command: launch collector + dashboard (+ optional eval loop) together."""
+    import os
+    import signal
+    import subprocess
+    import time
+    db = db or default_db_path()
+    init_db(db)
+    env = dict(os.environ, PRISM_DB=db)
+    py = sys.executable
+    procs: list = []
+
+    def launch(label: str, args: list):
+        procs.append((label, subprocess.Popen([py, "-m", "prism.cli"] + args, env=env)))
+
+    serve = ["serve", "--db", db, "--port", str(collector_port)]
+    if ssl_keyfile:
+        serve += ["--ssl-keyfile", ssl_keyfile, "--ssl-certfile", ssl_certfile or ""]
+    launch("collector", serve)
+
+    dash = ["dashboard", "--db", db, "--port", str(dashboard_port)]
+    if prompts_dir:
+        dash += ["--prompts-dir", prompts_dir]
+    launch("dashboard", dash)
+
+    if eval:
+        ev = ["eval", "--watch", "--db", db,
+              "--collector", f"http://127.0.0.1:{collector_port}"]
+        if judge_url:
+            ev += ["--judge-url", judge_url]
+        launch("eval-loop", ev)
+
+    scheme = "https" if ssl_keyfile else "http"
+    print("prism up:")
+    print(f"  collector  {scheme}://127.0.0.1:{collector_port}")
+    print(f"  dashboard  http://127.0.0.1:{dashboard_port}")
+    print(f"  db         {db}" + ("  + eval loop" if eval else ""))
+    print("  (Ctrl-C to stop all)")
+
+    stopping = {"v": False}
+    signal.signal(signal.SIGINT, lambda *a: stopping.update(v=True))
+    signal.signal(signal.SIGTERM, lambda *a: stopping.update(v=True))
+    try:
+        while not stopping["v"]:
+            time.sleep(0.5)
+            for label, p in procs:
+                if p.poll() is not None:
+                    print(f"  '{label}' exited (code {p.returncode}) — stopping the rest")
+                    stopping["v"] = True
+                    break
+    finally:
+        for label, p in procs:
+            if p.poll() is None:
+                p.terminate()
+        for label, p in procs:
+            try:
+                p.wait(timeout=5)
+            except Exception:  # noqa: BLE001
+                p.kill()
+        print("prism up: stopped")
+
+
 def cmd_project(action: str, name: str | None = None, db: str | None = None) -> None:
     from .store import ProjectsDAO, default_db_path
     dao = ProjectsDAO(db or default_db_path())
@@ -133,6 +197,14 @@ def main() -> None:
         cmd_serve(host, port, db, ssl_keyfile, ssl_certfile)
 
     @app.command()
+    def up(db: str = None, collector_port: int = 9100, dashboard_port: int = 8052,
+           prompts_dir: str = None, eval: bool = False, judge_url: str = None,
+           ssl_keyfile: str = None, ssl_certfile: str = None):
+        """Launch collector + dashboard (+ --eval loop) together."""
+        cmd_up(db, collector_port, dashboard_port, prompts_dir, eval, judge_url,
+               ssl_keyfile, ssl_certfile)
+
+    @app.command()
     def dashboard(host: str = "127.0.0.1", port: int = 8052, db: str = None,
                   debug: bool = False, show_cost: bool = False, prompts_dir: str = None):
         cmd_dashboard(host, port, db, debug, show_cost, prompts_dir)
@@ -167,6 +239,11 @@ def _argparse_main() -> None:
     ps = sub.add_parser("serve")
     ps.add_argument("--host", default="0.0.0.0"); ps.add_argument("--port", type=int, default=9100)
     ps.add_argument("--db"); ps.add_argument("--ssl-keyfile"); ps.add_argument("--ssl-certfile")
+    pu = sub.add_parser("up")
+    pu.add_argument("--db"); pu.add_argument("--collector-port", type=int, default=9100)
+    pu.add_argument("--dashboard-port", type=int, default=8052); pu.add_argument("--prompts-dir")
+    pu.add_argument("--eval", action="store_true"); pu.add_argument("--judge-url")
+    pu.add_argument("--ssl-keyfile"); pu.add_argument("--ssl-certfile")
     pd_ = sub.add_parser("dashboard")
     pd_.add_argument("--host", default="127.0.0.1"); pd_.add_argument("--port", type=int, default=8052)
     pd_.add_argument("--db"); pd_.add_argument("--debug", action="store_true")
@@ -189,6 +266,9 @@ def _argparse_main() -> None:
         cmd_init(a.db)
     elif a.cmd == "serve":
         cmd_serve(a.host, a.port, a.db, a.ssl_keyfile, a.ssl_certfile)
+    elif a.cmd == "up":
+        cmd_up(a.db, a.collector_port, a.dashboard_port, a.prompts_dir, a.eval,
+               a.judge_url, a.ssl_keyfile, a.ssl_certfile)
     elif a.cmd == "dashboard":
         cmd_dashboard(a.host, a.port, a.db, a.debug, a.show_cost, a.prompts_dir)
     elif a.cmd == "prompts":

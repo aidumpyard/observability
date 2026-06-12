@@ -36,7 +36,7 @@ RULE: **loan_agent is FROZEN** — never modify it. Build a *separate* second te
 - [ ] **Retention** (`prism gc`): max-age cleanup + VACUUM.
 - [ ] Prompt repo: **version pinning** ("production" pointer).
 - [ ] **OTel `gen_ai.*` export** from the collector.
-- [ ] **One-command install**: `prism up` (collector+dashboard) + quickstart docs.
+- [x] **One-command install**: `prism up` (collector+dashboard) + quickstart docs. (BV-OBS-11: prism up)
 - [ ] Docs: fold cost-opt-in, Dash, prompt repo, evals, multi-tenant into ARCHITECTURE.md.
 - [ ] Test hardening + `run_all_tests.sh`.
 

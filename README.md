@@ -15,10 +15,12 @@ versioned prompt repo, quality scoring (heuristics + LLM-judge + ROUGE-L), and
 ## Quick start
 ```bash
 pip install -e ".[collector,dashboard,cli,evals]"
-prism serve     --db ~/prism/prism.db --port 9100 &      # collector (writer)
-prism dashboard --db ~/prism/prism.db --port 8052 &      # dashboard (reader)
+prism up --db ~/prism/prism.db                           # collector + dashboard in one command
 prism project create "Acme Bank" --db ~/prism/prism.db   # -> ingest key for a tenant
 ```
+`prism up` launches the collector (:9100) and dashboard (:8052) together (add `--eval`
+for a continuous eval loop); Ctrl-C stops both. Or run them separately with
+`prism serve` / `prism dashboard`.
 Then instrument your app and point it at the collector. **Full step-by-step (DevOps +
 Developer + User):** [docs/GETTING_STARTED.md](docs/GETTING_STARTED.md).
 

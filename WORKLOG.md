@@ -183,3 +183,11 @@ Newest first. Each entry: what changed, why, how verified. Baseline = `BV-OBS-0`
   idempotent (BV-OBS-8). dao.judged_span_ids + runner.run_loop + CLI flags.
 - Tests: tests/smoke_eval_loop.py (incremental + budget) ✅; full suite (11) green.
 - Guide updated (Part C) with the scheduled-evals recipe.
+
+## 2026-06-12 — BV-OBS-11: prism up (one-command launch)
+- `prism up` launches collector + dashboard (+ `--eval` loop) as managed subprocesses;
+  prints URLs; Ctrl-C/SIGTERM stops the whole tree cleanly. Flags: --db, --collector-port,
+  --dashboard-port, --prompts-dir, --eval, --judge-url, --ssl-keyfile/-certfile. Dashboard
+  config still via env (PRISM_SHOW_*/PRISM_IDENTITIES).
+- Tests: tests/smoke_up.py (both endpoints up via one command + clean teardown) ✅;
+  full suite (12) green. README + guide updated to lead with `prism up`.
