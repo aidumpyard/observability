@@ -60,8 +60,10 @@ class Span:
     status: str = "ok"  # "ok" | "error"
     error: Optional[str] = None
 
-    # Identity / governance (stamped from config)
+    # Identity / governance (stamped from config + trace context)
     app_id: Optional[str] = None
+    user_id: Optional[str] = None        # from the active trace (end-user)
+    session_id: Optional[str] = None     # from the active trace
     env: Optional[str] = None
     app_type: Optional[str] = None
     data_classification: Optional[str] = None

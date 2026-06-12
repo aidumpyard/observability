@@ -191,3 +191,14 @@ Newest first. Each entry: what changed, why, how verified. Baseline = `BV-OBS-0`
   config still via env (PRISM_SHOW_*/PRISM_IDENTITIES).
 - Tests: tests/smoke_up.py (both endpoints up via one command + clean teardown) ✅;
   full suite (12) green. README + guide updated to lead with `prism up`.
+
+## 2026-06-12 — BV-OBS-12: end-user identity + trace deep-link (driven by loan_agent frontend)
+- Gap found by building a Dash frontend for loan_agent: Prism captured user_id/session_id
+  on the trace context but NEVER persisted them. Fixed: spans now carry user_id/session_id
+  (stamped from the active trace at emit); schema + migration + writer + recent_traces +
+  dashboard Traces column. New `prism.current_trace_id()` helper. Dashboard **deep-link**:
+  `?trace=<id>` opens that trace on the Traces tab (dcc.Location + folded into _select).
+- Verified end-to-end: a loan submitted as user "alice" -> one trace `loan_submit` with
+  user_id=alice/session on all 12 spans; trace_id == current_trace_id() (the link id).
+- Full suite (12) green. loan_agent frontend (separate repo) on :8200 links each run to
+  the Prism trace.

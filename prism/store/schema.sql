@@ -65,6 +65,8 @@ CREATE TABLE IF NOT EXISTS spans (
     response_id    TEXT,
     project_id     TEXT,            -- tenant; stamped server-side from the ingest key
     app_id         TEXT,
+    user_id        TEXT,            -- end-user (from trace context)
+    session_id     TEXT,
     env            TEXT,
     app_type       TEXT,
     internal       TEXT,            -- 'eval' etc. — excluded from product metrics

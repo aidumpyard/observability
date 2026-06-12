@@ -29,7 +29,8 @@ _SPAN_COLS = [
     "tokens_source", "finish_reason", "full_gemini_response", "cost_usd",
     "input_hash", "output_hash",
     "duration_ms", "status", "error", "data_classification", "response_id",
-    "project_id", "app_id", "env", "app_type", "internal", "schema_version",
+    "project_id", "app_id", "user_id", "session_id", "env", "app_type",
+    "internal", "schema_version",
     "started_at", "ended_at", "created_at", "received_at",
 ]
 
@@ -52,7 +53,8 @@ def _span_row(span: dict) -> list:
         span.get("input_hash"), span.get("output_hash"), span.get("duration_ms"),
         span.get("status"), span.get("error"), span.get("data_classification"),
         span.get("response_id"), span.get("project_id"),
-        span.get("app_id"), span.get("env"), span.get("app_type"),
+        span.get("app_id"), span.get("user_id"), span.get("session_id"),
+        span.get("env"), span.get("app_type"),
         span.get("internal"), span.get("schema_version"),
         span.get("started_at"), span.get("ended_at"), span.get("created_at"), received_at,
     ]

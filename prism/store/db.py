@@ -54,6 +54,10 @@ def _migrate(conn) -> None:
         conn.execute("ALTER TABLE spans ADD COLUMN input_hash TEXT")
     if "output_hash" not in cols:
         conn.execute("ALTER TABLE spans ADD COLUMN output_hash TEXT")
+    if "user_id" not in cols:
+        conn.execute("ALTER TABLE spans ADD COLUMN user_id TEXT")
+    if "session_id" not in cols:
+        conn.execute("ALTER TABLE spans ADD COLUMN session_id TEXT")
 
     # Idempotent scores: at most one score per (span_id, name, source). De-dupe any
     # existing rows (keep the newest), then add the unique index that upserts rely on.

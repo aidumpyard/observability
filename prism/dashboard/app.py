@@ -23,7 +23,7 @@ def _envbool(name: str, default: bool) -> bool:
 import pandas as pd
 import plotly.express as px
 import plotly.graph_objects as go
-from dash import Dash, Input, Output, State, ctx, dash_table, dcc, html
+from dash import Dash, Input, Output, State, ctx, dash_table, dcc, html, no_update
 from dash.exceptions import PreventUpdate
 
 from ..prompts import PromptRepo, default_root
@@ -264,6 +264,7 @@ def create_app(db_path: Optional[str] = None, show_cost: bool = False,
                               value=["on"], style={"marginLeft": "auto"}),
             ]),
             dcc.Interval(id="tick", interval=5000, n_intervals=0),
+            dcc.Location(id="url", refresh=False),      # deep-link: ?trace=<id>
             dcc.Store(id="selected-trace"),
             dcc.Tabs(id="tabs", value="overview", children=[
                 dcc.Tab(label="Overview", value="overview"),
@@ -362,15 +363,22 @@ def _register(app: Dash, db_path: str, show_cost: bool = False,
         return _prompt_detail(repo, db_path, app_id, name, int(version))
 
     @app.callback(
-        Output("selected-trace", "data"),
-        Input("traces-table", "active_cell"),
+        Output("selected-trace", "data"), Output("tabs", "value"),
+        Input("traces-table", "active_cell"), Input("url", "search"),
         State("traces-table", "data"),
-        prevent_initial_call=True,
+        prevent_initial_call=False,
     )
-    def _select(active, data):
+    def _select(active, search, data):
+        trig = ctx.triggered_id
+        # Deep-link: ?trace=<id> opens that trace on the Traces tab (also on first load)
+        if (trig == "url" or trig is None) and search and "trace=" in search:
+            from urllib.parse import parse_qs
+            tid = parse_qs(search.lstrip("?")).get("trace", [None])[0]
+            if tid:
+                return tid, "traces"
         if active and data:
-            return data[active["row"]]["trace_id"]
-        return None
+            return data[active["row"]]["trace_id"], no_update
+        raise PreventUpdate
 
 
 def _overview_body(db_path, app_id, hours, show_cost=False, project=None, ts_metric="both"):
@@ -474,7 +482,7 @@ def _quality_body(db_path, app_id, hours, project=None):
 def _traces_body(db_path, app_id, hours, selected, show_cost=False, project=None,
                  show_waterfall=True):
     traces = queries.recent_traces(db_path, app_id, hours, limit=200, project=project)
-    cols = ["started_at", "project_id", "app_id", "name", "spans", "tokens", "status", "trace_id"]
+    cols = ["started_at", "project_id", "app_id", "user_id", "name", "spans", "tokens", "status", "trace_id"]
     if show_cost:
         cols.insert(5, "cost")
     table = dash_table.DataTable(

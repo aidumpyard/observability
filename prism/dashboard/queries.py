@@ -246,6 +246,7 @@ def recent_traces(db_path: str, app: Optional[str] = None, hours: int = 24,
     try:
         rows = conn.execute(
             f"SELECT trace_id, MAX(app_id) app_id, MAX(project_id) project_id, "
+            f"  MAX(user_id) user_id, MAX(session_id) session_id, "
             f"  MIN(CASE WHEN parent_span_id IS NULL THEN name END) name, "
             f"  MIN(started_at) started_at, MAX(ended_at) ended_at, "
             f"  COUNT(*) spans, "

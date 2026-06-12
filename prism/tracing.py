@@ -48,6 +48,10 @@ def _emit(span: Span) -> None:
     span.env = span.env or cfg.env
     span.app_type = span.app_type or cfg.app_type
     span.data_classification = span.data_classification or cfg.data_classification
+    tr = context.current_trace()
+    if tr is not None:                          # carry end-user identity onto spans
+        span.user_id = span.user_id or tr.user_id
+        span.session_id = span.session_id or tr.session_id
     span.created_at = span.created_at or span.started_at or context.now_iso()
     transport.enqueue(span.to_wire())
 
