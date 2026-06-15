@@ -202,3 +202,10 @@ Newest first. Each entry: what changed, why, how verified. Baseline = `BV-OBS-0`
   user_id=alice/session on all 12 spans; trace_id == current_trace_id() (the link id).
 - Full suite (12) green. loan_agent frontend (separate repo) on :8200 links each run to
   the Prism trace.
+
+## 2026-06-15 — docs: DEVELOPER_GUIDE.md
+- docs/DEVELOPER_GUIDE.md: hands-on dev guide — run services locally (`prism up` /
+  serve+dashboard), create a project/key, then instrument an app with the actual SDK
+  functions (init, trace, span/@observe, llm.generate, capture_llm, current_trace_id,
+  inject/continue_trace), a minimal copy-paste example, the optional obs.py shim,
+  LangChain/LangGraph handler, verify steps, and a quick reference. Linked from README.

@@ -40,8 +40,10 @@ functions (`@prism.observe`). Never throws into your code, never blocks the requ
 - `docs/GETTING_STARTED.md` — the complete guide.
 - `ARCHITECTURE.md` — design & decisions. `REVIEWS/` — per-version self-reviews.
 
-## Design docs
-- [ARCHITECTURE.md](ARCHITECTURE.md) · [SDK.md](SDK.md) · [docs/GETTING_STARTED.md](docs/GETTING_STARTED.md)
+## Docs
+- **[docs/DEVELOPER_GUIDE.md](docs/DEVELOPER_GUIDE.md)** — hands-on: run the services locally + instrument your app (the SDK functions).
+- [docs/GETTING_STARTED.md](docs/GETTING_STARTED.md) — full DevOps + Developer + User guide.
+- [ARCHITECTURE.md](ARCHITECTURE.md) · [SDK.md](SDK.md) — design & decisions.
 
 Versions are tagged `BV-OBS-N` on the `BV-OBS-Auto` branch, each with a self-review in
 [`REVIEWS/`](REVIEWS/).
