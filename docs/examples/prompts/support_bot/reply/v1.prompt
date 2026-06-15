@@ -1,0 +1,9 @@
+---
+version: 1
+model: gemini-2.5-flash
+variables: tone
+tags: reply
+created_by: example
+description: Draft a customer reply in a given tone (render with tone=...)
+---
+Draft a concise, {tone} reply to the customer's message. Acknowledge the issue, state the next step, and give a realistic timeframe. Do not invent facts.

@@ -113,3 +113,99 @@ Newest first. Each entry: what changed, why, how verified. Baseline = `BV-OBS-0`
 - scores⋈spans share created_at; _where now qualifies columns via a `prefix` arg
   ("s.") for the joined quality queries. Quality tab now renders. Re-pointed the
   BV-OBS-5 tag to the fixed commit (local-only, tag was minutes old + broken).
+
+## 2026-06-12 — BV-OBS-6: better "over time" chart
+- timeseries: adaptive bucket granularity (minute <=6h, hour <=7d, day beyond);
+  build_timeseries now uses a real datetime x-axis, spline lines + markers, area fill,
+  unified hover, adaptive tick format. Single-point data renders as a visible marker.
+- Header **metric switch**: calls+tokens / calls / tokens (persistent, no tick reset).
+- Seeded 258 demo spans across 24h (Acme/Globex) so the curve is visible.
+- Tests: dashboard regression ✅; all 3 metric modes build.
+
+## 2026-06-12 — config toggles: waterfall + quality tab
+- Dashboard config flags PRISM_SHOW_WATERFALL / PRISM_SHOW_QUALITY (true/false;
+  also create_app/run params). false -> Traces hides the waterfall graph (keeps span
+  table + prompts/responses); Quality tab removed from the tabs entirely.
+- Set BOTH to FALSE for now (per request). Verified on/off; regression green.
+
+## 2026-06-12 — BV-OBS-7: reference-based quality (ROUGE-L) + config toggles + chart polish
+- evals/reference.py: ROUGE-L F1 vs a golden reference (verdict PASS/WARN/FAIL +
+  length signal) and sha256 hashing. References keyed by input-hash (dev_check model);
+  load_references(json [{input,reference}]). Runner + `prism eval --references` wire it
+  in; scores source='reference'. Quality tab shows a "ROUGE-L (vs reference)" card.
+  Deps: `evals` extra (rouge-score, light); `drift` extra (bert-score/torch) reserved
+  for the optional BERTScore semantic-drift metric (deferred — heavy).
+- Also shipped this session: config toggles PRISM_SHOW_WATERFALL / PRISM_SHOW_QUALITY;
+  removed the calls/tokens metric dropdown; fixed Traces waterfall (click-to-open +
+  no 5s flicker); adaptive timeseries (BV-OBS-6).
+- Tests: tests/smoke_reference.py ✅; dashboard regression ✅. Demo: rouge_l avg 0.64
+  over seeded references.
+- KNOWN: re-running `prism eval` duplicates scores (no idempotency yet) — fix later.
+
+## 2026-06-12 — BV-OBS-8: idempotent scores
+- scores are now upserted by (span_id, name, source): a re-run of `prism eval`
+  REPLACES rather than duplicates. Migration de-dupes existing rows (keep newest) +
+  adds UNIQUE INDEX idx_scores_unique; writer uses ON CONFLICT ... DO UPDATE.
+- Verified: re-running eval twice leaves the score count stable; demo db deduped
+  979 -> 904; Quality averages no longer inflated by reruns.
+- Tests: tests/smoke_idempotent.py ✅; full suite (9) green.
+- NOTE: demo "answered" rate looks low because 258 synthetic chart-seed spans have no
+  response_text (cosmetic demo-data artifact, not a product issue).
+
+## 2026-06-12 — BV-OBS-9: audit hash / reproducibility
+- prism/audit.py (sha256/verify/repro_key); SDK stamps input_hash + output_hash on
+  llm spans at capture from the FULL text (before truncation/redaction) — so the
+  fingerprint exists even when content isn't stored. Schema + migration + writer +
+  trace_spans carry the hashes.
+- Collector `POST /v1/verify` {span_id, output} -> {match, stored_output_hash, ...}:
+  proves a text matches what was produced; detects tampering.
+- Dashboard: trace detail shows a "🔒 audit" line per llm span (output/input sha256 +
+  model) — the reproduction key for bank-grade auditability.
+- Tests: tests/smoke_audit.py (stamp + verify match + tamper) ✅; full suite (10) green.
+  Re-ran a loan -> 4 hashed spans for the demo trace.
+
+## 2026-06-12 — docs: GETTING_STARTED guide (DevOps + Developer + User) + README
+- docs/GETTING_STARTED.md: full setup — collector server, TLS, dashboard, collector
+  CLI (project/prompts/eval/verify), and SDK integration with loan_agent as the
+  worked example (obs.py shim, single LLM seam, LangGraph handler, prompt repo),
+  end-to-end-in-5-commands, config reference, troubleshooting, production notes.
+- README.md added (pyproject references it).
+
+## 2026-06-12 — docs: ready-to-run examples
+- docs/examples/: sample versioned prompt repo (support_bot: triage v1+v2, reply with
+  {tone}) + golden.json (ROUGE-L reference set) + examples/README.md. Guide points to
+  them. Verified: PromptRepo loads them, load_references parses + matches by input hash.
+
+## 2026-06-12 — BV-OBS-10: scheduled evals
+- `prism eval --watch --interval N` loops the eval engine; **incremental** (skip_judged)
+  so each cycle re-runs cheap heuristics but only LLM-judges spans not already judged.
+  `--max-judge N` caps judge calls per cycle (cost budget). Safe because scores are
+  idempotent (BV-OBS-8). dao.judged_span_ids + runner.run_loop + CLI flags.
+- Tests: tests/smoke_eval_loop.py (incremental + budget) ✅; full suite (11) green.
+- Guide updated (Part C) with the scheduled-evals recipe.
+
+## 2026-06-12 — BV-OBS-11: prism up (one-command launch)
+- `prism up` launches collector + dashboard (+ `--eval` loop) as managed subprocesses;
+  prints URLs; Ctrl-C/SIGTERM stops the whole tree cleanly. Flags: --db, --collector-port,
+  --dashboard-port, --prompts-dir, --eval, --judge-url, --ssl-keyfile/-certfile. Dashboard
+  config still via env (PRISM_SHOW_*/PRISM_IDENTITIES).
+- Tests: tests/smoke_up.py (both endpoints up via one command + clean teardown) ✅;
+  full suite (12) green. README + guide updated to lead with `prism up`.
+
+## 2026-06-12 — BV-OBS-12: end-user identity + trace deep-link (driven by loan_agent frontend)
+- Gap found by building a Dash frontend for loan_agent: Prism captured user_id/session_id
+  on the trace context but NEVER persisted them. Fixed: spans now carry user_id/session_id
+  (stamped from the active trace at emit); schema + migration + writer + recent_traces +
+  dashboard Traces column. New `prism.current_trace_id()` helper. Dashboard **deep-link**:
+  `?trace=<id>` opens that trace on the Traces tab (dcc.Location + folded into _select).
+- Verified end-to-end: a loan submitted as user "alice" -> one trace `loan_submit` with
+  user_id=alice/session on all 12 spans; trace_id == current_trace_id() (the link id).
+- Full suite (12) green. loan_agent frontend (separate repo) on :8200 links each run to
+  the Prism trace.
+
+## 2026-06-15 — docs: DEVELOPER_GUIDE.md
+- docs/DEVELOPER_GUIDE.md: hands-on dev guide — run services locally (`prism up` /
+  serve+dashboard), create a project/key, then instrument an app with the actual SDK
+  functions (init, trace, span/@observe, llm.generate, capture_llm, current_trace_id,
+  inject/continue_trace), a minimal copy-paste example, the optional obs.py shim,
+  LangChain/LangGraph handler, verify steps, and a quick reference. Linked from README.

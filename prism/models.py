@@ -49,6 +49,9 @@ class Span:
     full_gemini_response: Optional[str] = None
     cost_usd: Optional[float] = None
     response_id: Optional[str] = None
+    # Audit/reproducibility: SHA-256 of the full input/output (before truncation).
+    input_hash: Optional[str] = None
+    output_hash: Optional[str] = None
 
     # Generic span fields
     input: Optional[Any] = None
@@ -57,8 +60,10 @@ class Span:
     status: str = "ok"  # "ok" | "error"
     error: Optional[str] = None
 
-    # Identity / governance (stamped from config)
+    # Identity / governance (stamped from config + trace context)
     app_id: Optional[str] = None
+    user_id: Optional[str] = None        # from the active trace (end-user)
+    session_id: Optional[str] = None     # from the active trace
     env: Optional[str] = None
     app_type: Optional[str] = None
     data_classification: Optional[str] = None

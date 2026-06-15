@@ -31,7 +31,7 @@ from .version import SCHEMA_VERSION, __version__
 __all__ = [
     "init", "shutdown", "trace", "span", "observe", "llm", "capture_llm",
     "inject", "extract", "continue_trace", "pii_redactor", "dropped",
-    "__version__", "SCHEMA_VERSION",
+    "current_trace_id", "__version__", "SCHEMA_VERSION",
 ]
 
 
@@ -81,6 +81,12 @@ def dropped() -> int:
     """Self-observability: spans dropped due to queue overflow / collector down."""
     cfg = config.get_config()
     return cfg.dropped if cfg else 0
+
+
+def current_trace_id() -> Optional[str]:
+    """The active trace id (e.g. to show a deep-link to the dashboard), or None."""
+    tr = context.current_trace()
+    return tr.trace_id if tr else None
 
 
 # --- W3C trace-context propagation (Layer 4) -------------------------------

@@ -56,6 +56,8 @@ CREATE TABLE IF NOT EXISTS spans (
     finish_reason  TEXT,
     full_gemini_response TEXT,
     cost_usd       REAL,
+    input_hash     TEXT,            -- SHA-256 of full input (audit/reproducibility)
+    output_hash    TEXT,            -- SHA-256 of full output (tamper-evident)
     duration_ms    REAL,            -- measured locally on the producing host
     status         TEXT,
     error          TEXT,
@@ -63,6 +65,8 @@ CREATE TABLE IF NOT EXISTS spans (
     response_id    TEXT,
     project_id     TEXT,            -- tenant; stamped server-side from the ingest key
     app_id         TEXT,
+    user_id        TEXT,            -- end-user (from trace context)
+    session_id     TEXT,
     env            TEXT,
     app_type       TEXT,
     internal       TEXT,            -- 'eval' etc. — excluded from product metrics

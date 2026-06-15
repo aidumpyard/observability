@@ -28,6 +28,17 @@ def recent_spans(db_path: str, limit: int = 100, app_id: Optional[str] = None) -
         conn.close()
 
 
+def judged_span_ids(db_path: str, source: str = "llm_judge") -> set:
+    """span_ids that already have a score from this source — for incremental evals."""
+    conn = db.connect(db_path, read_only=True)
+    try:
+        return {r["span_id"] for r in conn.execute(
+            "SELECT DISTINCT span_id FROM scores WHERE source = ? AND span_id IS NOT NULL",
+            (source,)).fetchall()}
+    finally:
+        conn.close()
+
+
 def trace_spans(db_path: str, trace_id: str) -> list[dict]:
     conn = db.connect(db_path, read_only=True)
     try:

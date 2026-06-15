@@ -20,6 +20,8 @@ collector = ["fastapi>=0.110", "uvicorn>=0.29"]
 dashboard = ["dash>=2.16", "plotly>=5.20", "pandas>=2.2"]
 cli = ["typer>=0.12"]
 langchain = ["langchain-core>=0.2"]
+evals = ["rouge-score>=0.1.2"]              # reference-based ROUGE-L (light, pure-python)
+drift = ["bert-score>=0.3"]                 # OPTIONAL semantic drift — pulls torch (~700MB)
 all = [
     "fastapi>=0.110", "uvicorn>=0.29",
     "dash>=2.16", "plotly>=5.20", "pandas>=2.2",

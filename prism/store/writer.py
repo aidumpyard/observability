@@ -27,8 +27,10 @@ _SPAN_COLS = [
     "input_json", "output_json", "attributes_json",
     "prompt_tokens", "completion_tokens", "total_tokens", "thoughts_tokens",
     "tokens_source", "finish_reason", "full_gemini_response", "cost_usd",
+    "input_hash", "output_hash",
     "duration_ms", "status", "error", "data_classification", "response_id",
-    "project_id", "app_id", "env", "app_type", "internal", "schema_version",
+    "project_id", "app_id", "user_id", "session_id", "env", "app_type",
+    "internal", "schema_version",
     "started_at", "ended_at", "created_at", "received_at",
 ]
 
@@ -47,10 +49,12 @@ def _span_row(span: dict) -> list:
         _dumps(span.get("input")), _dumps(span.get("output")), _dumps(span.get("attributes")),
         span.get("prompt_tokens"), span.get("completion_tokens"), span.get("total_tokens"),
         span.get("thoughts_tokens"), span.get("tokens_source"), span.get("finish_reason"),
-        span.get("full_gemini_response"), span.get("cost_usd"), span.get("duration_ms"),
+        span.get("full_gemini_response"), span.get("cost_usd"),
+        span.get("input_hash"), span.get("output_hash"), span.get("duration_ms"),
         span.get("status"), span.get("error"), span.get("data_classification"),
         span.get("response_id"), span.get("project_id"),
-        span.get("app_id"), span.get("env"), span.get("app_type"),
+        span.get("app_id"), span.get("user_id"), span.get("session_id"),
+        span.get("env"), span.get("app_type"),
         span.get("internal"), span.get("schema_version"),
         span.get("started_at"), span.get("ended_at"), span.get("created_at"), received_at,
     ]
@@ -126,9 +130,14 @@ class Writer:
                 self._upsert_apps(cur, spans)
                 self._recompute_traces(cur, {s.get("trace_id") for s in spans if s.get("trace_id")})
             if scores:
+                # Upsert: one score per (span_id, name, source); a re-run replaces.
                 cur.executemany(
                     "INSERT INTO scores (span_id, trace_id, name, value, label, source, "
-                    "rationale, created_at) VALUES (?,?,?,?,?,?,?,?)",
+                    "rationale, created_at) VALUES (?,?,?,?,?,?,?,?) "
+                    "ON CONFLICT(span_id, name, source) DO UPDATE SET "
+                    "value=excluded.value, label=excluded.label, "
+                    "rationale=excluded.rationale, trace_id=excluded.trace_id, "
+                    "created_at=excluded.created_at",
                     [(s.get("span_id"), s.get("trace_id"), s.get("name"), s.get("value"),
                       s.get("label"), s.get("source"), s.get("rationale"),
                       s.get("created_at") or _now()) for s in scores],

@@ -113,6 +113,9 @@ class _LLM:
             raise
 
         usage = safe_call(_extract_usage, envelope, default={}) or {}
+        from . import audit
+        sp.input_hash = audit.sha256(message)                 # full input, pre-truncation
+        sp.output_hash = audit.sha256(usage.get("response_text"))
         sp.response_text = _truncate(usage.get("response_text"))
         sp.prompt_tokens = usage.get("prompt_tokens")
         sp.completion_tokens = usage.get("completion_tokens")
@@ -166,6 +169,10 @@ def capture_llm(call, *, request: Optional[dict] = None, model: Optional[str] = 
     envelope = result.json() if isinstance(result, httpx.Response) else result
     if isinstance(envelope, dict):
         usage = safe_call(_extract_usage, envelope, default={}) or {}
+        from . import audit
+        if request:
+            sp.input_hash = audit.sha256(request.get("message"))
+        sp.output_hash = audit.sha256(usage.get("response_text"))
         sp.response_text = _truncate(usage.get("response_text"))
         sp.prompt_tokens = usage.get("prompt_tokens")
         sp.completion_tokens = usage.get("completion_tokens")

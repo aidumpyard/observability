@@ -113,18 +113,31 @@ def _pct(values: list[float], p: int) -> float:
     return round(s[k], 1)
 
 
+def _granularity(hours: Optional[int]) -> str:
+    """Pick a bucket size from the window: minute for short, hour for mid, day for long."""
+    if hours and hours <= 6:
+        return "minute"
+    if not hours or hours > 168:
+        return "day"
+    return "hour"
+
+
 def timeseries(db_path: str, app: Optional[str] = None, hours: int = 24,
                project: Optional[str] = None) -> list[dict]:
+    gran = _granularity(hours)
+    width = {"minute": 16, "hour": 13, "day": 10}[gran]   # substr length on ISO ts
     where, params = _where(app, hours, project=project)
     conn = db.connect(db_path, read_only=True)
     try:
-        # hourly buckets via substr on the ISO timestamp (YYYY-MM-DDTHH)
         rows = conn.execute(
-            f"SELECT substr({_T},1,13) bucket, COUNT(*) calls, "
+            f"SELECT substr({_T},1,{width}) bucket, COUNT(*) calls, "
             f"COALESCE(SUM(total_tokens),0) tokens, COALESCE(SUM(cost_usd),0) cost, "
             f"COALESCE(SUM(status='error'),0) errors "
             f"FROM spans WHERE {where} GROUP BY bucket ORDER BY bucket", params).fetchall()
-        return [dict(r) for r in rows]
+        out = [dict(r) for r in rows]
+        for r in out:
+            r["granularity"] = gran
+        return out
     finally:
         conn.close()
 
@@ -233,6 +246,7 @@ def recent_traces(db_path: str, app: Optional[str] = None, hours: int = 24,
     try:
         rows = conn.execute(
             f"SELECT trace_id, MAX(app_id) app_id, MAX(project_id) project_id, "
+            f"  MAX(user_id) user_id, MAX(session_id) session_id, "
             f"  MIN(CASE WHEN parent_span_id IS NULL THEN name END) name, "
             f"  MIN(started_at) started_at, MAX(ended_at) ended_at, "
             f"  COUNT(*) spans, "
@@ -258,8 +272,9 @@ def trace_spans(db_path: str, trace_id: str) -> list[dict]:
     try:
         rows = conn.execute(
             "SELECT span_id, parent_span_id, trace_id, type, name, model, prompt_id, "
-            "started_at, ended_at, duration_ms, prompt_tokens, completion_tokens, "
-            "total_tokens, cost_usd, status, error, system_prompt, user_message, response_text "
+            "params_json, started_at, ended_at, duration_ms, prompt_tokens, completion_tokens, "
+            "total_tokens, cost_usd, status, error, system_prompt, user_message, response_text, "
+            "input_hash, output_hash "
             "FROM spans WHERE trace_id = ? ORDER BY started_at ASC", (trace_id,)).fetchall()
         return [dict(r) for r in rows]
     finally:

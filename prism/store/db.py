@@ -45,8 +45,27 @@ def init_db(db_path: str) -> None:
 
 
 def _migrate(conn) -> None:
-    """Additive migrations for DBs created before a column existed."""
+    """Additive migrations for DBs created before a column/index existed."""
     cols = {r["name"] for r in conn.execute("PRAGMA table_info(spans)")}
     if "project_id" not in cols:
         conn.execute("ALTER TABLE spans ADD COLUMN project_id TEXT")
         conn.execute("CREATE INDEX IF NOT EXISTS idx_spans_project ON spans(project_id)")
+    if "input_hash" not in cols:
+        conn.execute("ALTER TABLE spans ADD COLUMN input_hash TEXT")
+    if "output_hash" not in cols:
+        conn.execute("ALTER TABLE spans ADD COLUMN output_hash TEXT")
+    if "user_id" not in cols:
+        conn.execute("ALTER TABLE spans ADD COLUMN user_id TEXT")
+    if "session_id" not in cols:
+        conn.execute("ALTER TABLE spans ADD COLUMN session_id TEXT")
+
+    # Idempotent scores: at most one score per (span_id, name, source). De-dupe any
+    # existing rows (keep the newest), then add the unique index that upserts rely on.
+    idx = {r["name"] for r in conn.execute("PRAGMA index_list(scores)")}
+    if "idx_scores_unique" not in idx:
+        conn.execute(
+            "DELETE FROM scores WHERE span_id IS NOT NULL AND score_id NOT IN "
+            "(SELECT MAX(score_id) FROM scores WHERE span_id IS NOT NULL "
+            " GROUP BY span_id, name, source)")
+        conn.execute("CREATE UNIQUE INDEX IF NOT EXISTS idx_scores_unique "
+                     "ON scores(span_id, name, source)")
