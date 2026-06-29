@@ -28,7 +28,8 @@ def _cutoff(hours: Optional[int]) -> Optional[str]:
 
 
 def _where(app: Optional[str], hours: Optional[int], base: str = _LLM,
-           project: Optional[str] = None, prefix: str = "") -> tuple[str, list]:
+           project: Optional[str] = None, prefix: str = "",
+           user: Optional[str] = None) -> tuple[str, list]:
     # prefix qualifies column names (e.g. "s.") when the query joins another table
     # that shares column names like created_at.
     tcol = f"COALESCE({prefix}created_at, {prefix}started_at, {prefix}received_at)"
@@ -40,6 +41,9 @@ def _where(app: Optional[str], hours: Optional[int], base: str = _LLM,
     if app and app != "(all)":
         clauses.append(f"{prefix}app_id = ?")
         params.append(app)
+    if user and user != "(all)":
+        clauses.append(f"{prefix}user_id = ?")
+        params.append(user)
     cut = _cutoff(hours)
     if cut:
         clauses.append(f"{tcol} >= ?")
@@ -47,7 +51,7 @@ def _where(app: Optional[str], hours: Optional[int], base: str = _LLM,
     return " AND ".join(clauses), params
 
 
-def list_apps(db_path: str, project: Optional[str] = None) -> list[str]:
+def list_apps(db_path: str, project: Optional[str] = None, user: Optional[str] = None) -> list[str]:
     conn = db.connect(db_path, read_only=True)
     try:
         if project and project != "(all)":
@@ -57,6 +61,20 @@ def list_apps(db_path: str, project: Optional[str] = None) -> list[str]:
             rows = conn.execute("SELECT DISTINCT app_id FROM spans WHERE app_id IS NOT NULL "
                                 "ORDER BY app_id").fetchall()
         return [r["app_id"] for r in rows]
+    finally:
+        conn.close()
+
+
+def list_users(db_path: str, project: Optional[str] = None) -> list[str]:
+    conn = db.connect(db_path, read_only=True)
+    try:
+        if project and project != "(all)":
+            rows = conn.execute("SELECT DISTINCT user_id FROM spans WHERE user_id IS NOT NULL "
+                                "AND project_id = ? ORDER BY user_id", (project,)).fetchall()
+        else:
+            rows = conn.execute("SELECT DISTINCT user_id FROM spans WHERE user_id IS NOT NULL "
+                                "ORDER BY user_id").fetchall()
+        return [r["user_id"] for r in rows]
     finally:
         conn.close()
 
@@ -80,8 +98,8 @@ def list_projects(db_path: str) -> list[dict]:
 
 
 def overview(db_path: str, app: Optional[str] = None, hours: int = 24,
-             project: Optional[str] = None) -> dict:
-    where, params = _where(app, hours, project=project)
+             project: Optional[str] = None, user: Optional[str] = None) -> dict:
+    where, params = _where(app, hours, project=project, user=user)
     conn = db.connect(db_path, read_only=True)
     try:
         row = conn.execute(
@@ -123,10 +141,10 @@ def _granularity(hours: Optional[int]) -> str:
 
 
 def timeseries(db_path: str, app: Optional[str] = None, hours: int = 24,
-               project: Optional[str] = None) -> list[dict]:
+               project: Optional[str] = None, user: Optional[str] = None) -> list[dict]:
     gran = _granularity(hours)
     width = {"minute": 16, "hour": 13, "day": 10}[gran]   # substr length on ISO ts
-    where, params = _where(app, hours, project=project)
+    where, params = _where(app, hours, project=project, user=user)
     conn = db.connect(db_path, read_only=True)
     try:
         rows = conn.execute(
@@ -142,8 +160,8 @@ def timeseries(db_path: str, app: Optional[str] = None, hours: int = 24,
         conn.close()
 
 
-def by_app(db_path: str, hours: int = 24, project: Optional[str] = None) -> list[dict]:
-    where, params = _where(None, hours, project=project)
+def by_app(db_path: str, hours: int = 24, project: Optional[str] = None, user: Optional[str] = None) -> list[dict]:
+    where, params = _where(None, hours, project=project, user=user)
     conn = db.connect(db_path, read_only=True)
     try:
         rows = conn.execute(
@@ -157,8 +175,8 @@ def by_app(db_path: str, hours: int = 24, project: Optional[str] = None) -> list
 
 
 def by_model(db_path: str, app: Optional[str] = None, hours: int = 24,
-             project: Optional[str] = None) -> list[dict]:
-    where, params = _where(app, hours, project=project)
+             project: Optional[str] = None, user: Optional[str] = None) -> list[dict]:
+    where, params = _where(app, hours, project=project, user=user)
     conn = db.connect(db_path, read_only=True)
     try:
         rows = conn.execute(
@@ -171,9 +189,9 @@ def by_model(db_path: str, app: Optional[str] = None, hours: int = 24,
 
 
 def by_prompt(db_path: str, app: Optional[str] = None, hours: int = 24,
-              project: Optional[str] = None) -> list[dict]:
+              project: Optional[str] = None, user: Optional[str] = None) -> list[dict]:
     """Per prompt-version metrics — enables prompt A/B and regression spotting."""
-    where, params = _where(app, hours, project=project)
+    where, params = _where(app, hours, project=project, user=user)
     conn = db.connect(db_path, read_only=True)
     try:
         rows = conn.execute(
@@ -189,9 +207,9 @@ def by_prompt(db_path: str, app: Optional[str] = None, hours: int = 24,
 
 
 def quality_summary(db_path: str, app: Optional[str] = None, hours: int = 24,
-                    project: Optional[str] = None) -> list[dict]:
+                    project: Optional[str] = None, user: Optional[str] = None) -> list[dict]:
     """Average score per metric name (judge + heuristic), scoped, via scores⋈spans."""
-    where, params = _where(app, hours, base="1=1", project=project, prefix="s.")
+    where, params = _where(app, hours, base="1=1", project=project, prefix="s.", user=user)
     conn = db.connect(db_path, read_only=True)
     try:
         rows = conn.execute(
@@ -205,9 +223,9 @@ def quality_summary(db_path: str, app: Optional[str] = None, hours: int = 24,
 
 
 def quality_by_prompt(db_path: str, app: Optional[str] = None, hours: int = 24,
-                      project: Optional[str] = None) -> list[dict]:
+                      project: Optional[str] = None, user: Optional[str] = None) -> list[dict]:
     """Average LLM-judge score per prompt version — quality A/B across prompts."""
-    where, params = _where(app, hours, base="1=1", project=project, prefix="s.")
+    where, params = _where(app, hours, base="1=1", project=project, prefix="s.", user=user)
     conn = db.connect(db_path, read_only=True)
     try:
         rows = conn.execute(
@@ -239,9 +257,9 @@ def prompt_usage(db_path: str, ref: str) -> dict:
 
 
 def recent_traces(db_path: str, app: Optional[str] = None, hours: int = 24,
-                  limit: int = 100, project: Optional[str] = None) -> list[dict]:
+                  limit: int = 100, project: Optional[str] = None, user: Optional[str] = None) -> list[dict]:
     # Aggregate over ALL spans (not just llm) so trace rows include chain/tool too.
-    where, params = _where(app, hours, base="1=1", project=project)
+    where, params = _where(app, hours, base="1=1", project=project, user=user)
     conn = db.connect(db_path, read_only=True)
     try:
         rows = conn.execute(
